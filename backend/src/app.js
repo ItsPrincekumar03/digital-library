@@ -1,13 +1,17 @@
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/errorHandler');
 const healthRoutes = require('./routes/health.routes');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 
 // Fallback 404
 app.use((req, res) => {

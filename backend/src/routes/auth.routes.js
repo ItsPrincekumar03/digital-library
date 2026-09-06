@@ -14,7 +14,6 @@ router.post('/register', registerRules, handleValidation, authController.registe
 router.post('/login', loginRules, handleValidation, authController.login);
 router.post('/logout', requireAuth, authController.logout);
 
-// Test-only routes to prove middleware works (per task: "necessary to test authentication")
 router.get('/me', requireAuth, authController.me);
 router.get('/admin-check', requireAuth, requireRole('ADMIN'), (req, res) => {
     res.status(200).json({ success: true, message: 'Welcome, admin.' });

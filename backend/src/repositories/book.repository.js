@@ -36,4 +36,17 @@ async function archive(bookId) {
     await pool.query("UPDATE books SET status = 'ARCHIVED', updated_at = CURRENT_TIMESTAMP WHERE book_id = ?", [bookId]);
 }
 
-module.exports = { create, findAll, findById, updateFields, archive, VALID_STATUSES };
+async function findAllPaginated({ limit, offset, sortColumn, sortDirection }) {
+    const [rows] = await pool.query(
+        `SELECT * FROM books ORDER BY ${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
+        [limit, offset]
+    );
+    return rows;
+}
+
+async function countAll() {
+    const [rows] = await pool.query('SELECT COUNT(*) AS total FROM books');
+    return rows[0].total;
+}
+
+module.exports = { create, findAll, findById, updateFields, archive, VALID_STATUSES, findAllPaginated, countAll };

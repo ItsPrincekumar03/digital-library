@@ -1,14 +1,28 @@
 const logger = require('../utils/logger');
 
-// Centralized error handler.
-// Any route/controller can call next(err) and it lands here.
 function errorHandler(err, req, res, next) {
-    logger.error(`Unhandled error on ${req.method} ${req.originalUrl}`, err);
+    const status = err.status || 500;
 
-    res.status(err.status || 500).json({
+    if (status >= 500) {
+        logger.error(
+            `Unhandled error on ${req.method} ${req.originalUrl}`,
+            err
+        );
+    } else {
+        logger.info(
+            `Handled error (${status}) on ${req.method} ${req.originalUrl}: ${err.message}`
+        );
+    }
+
+    const body = {
         success: false,
-        message: err.message || 'Internal Server Error',
-    });
+        message:
+            status >= 500
+                ? 'An unexpected server error occurred.'
+                : err.message,
+    };
+
+    res.status(status).json(body);
 }
 
 module.exports = errorHandler;

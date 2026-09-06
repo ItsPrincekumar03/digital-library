@@ -1,4 +1,6 @@
 const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/errorHandler');
 const healthRoutes = require('./routes/health.routes');
@@ -9,6 +11,12 @@ const bookRoutes = require('./routes/book.routes');
 const chapterRoutes = require('./routes/chapter.routes');
 
 const app = express();
+
+app.use(helmet());
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+}));
 
 app.use(express.json());
 app.use(cookieParser());

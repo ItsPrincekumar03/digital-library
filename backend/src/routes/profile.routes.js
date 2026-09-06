@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-
 const profileController = require('../controllers/profile.controller');
 const requireAuth = require('../middleware/auth.middleware');
+const { passwordLimiter } = require('../middleware/rateLimiter');
 const {
     updateProfileRules,
     changePasswordRules,
@@ -14,6 +14,6 @@ const {
 // so it's impossible to target another user's account through this router.
 router.get('/profile', requireAuth, profileController.getProfile);
 router.put('/profile', requireAuth, updateProfileRules, handleValidation, profileController.updateProfile);
-router.put('/change-password', requireAuth, changePasswordRules, handleValidation, profileController.changePassword);
+router.put('/change-password', requireAuth, passwordLimiter, changePasswordRules, handleValidation, profileController.changePassword);
 
 module.exports = router;

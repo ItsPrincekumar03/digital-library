@@ -17,7 +17,7 @@ const changePasswordRules = [
         .notEmpty().withMessage('Current password is required'),
     body('newPassword')
         .notEmpty().withMessage('New password is required')
-        .isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+        .isLength({ min: 8, max: 72 }).withMessage('New password must be between 8 and 72 characters'),
 ];
 
 function handleValidation(req, res, next) {

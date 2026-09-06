@@ -4,18 +4,18 @@ const createChapterRules = [
     body('chapterNumber').isInt({ min: 1 }).withMessage('chapterNumber must be a positive integer'),
     body('title').trim().notEmpty().withMessage('Title is required')
         .isLength({ max: 255 }).withMessage('Title too long'),
-    body('content').optional({ nullable: true }).isString(),
+    body('content').optional({ nullable: true }).isString().isLength({ max: 100000 }).withMessage('Content too long'),
 ];
 
 const updateChapterRules = [
     body('chapterNumber').isInt({ min: 1 }).withMessage('chapterNumber must be a positive integer'),
     body('title').trim().notEmpty().withMessage('Title is required')
         .isLength({ max: 255 }).withMessage('Title too long'),
-    body('content').optional({ nullable: true }).isString(),
+    body('content').optional({ nullable: true }).isString().isLength({ max: 100000 }).withMessage('Content too long'),
 ];
 
 const reorderChaptersRules = [
-    body('order').isArray({ min: 1 }).withMessage('order must be a non-empty array'),
+    body('order').isArray({ min: 1, max: 500 }).withMessage('order must be a non-empty array of at most 500 items'),
     body('order.*.chapterId').isInt({ min: 1 }).withMessage('Each item needs a valid chapterId'),
     body('order.*.chapterNumber').isInt({ min: 1 }).withMessage('Each item needs a valid chapterNumber'),
 ];

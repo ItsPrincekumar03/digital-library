@@ -3,7 +3,7 @@ const { body, param, validationResult } = require('express-validator');
 const createCategoryRules = [
     body('name').trim().notEmpty().withMessage('Category name is required')
         .isLength({ max: 100 }).withMessage('Category name too long'),
-    body('description').optional({ nullable: true }).isString(),
+    body('description').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('Description too long'),
 ];
 
 const updateCategoryRules = createCategoryRules;

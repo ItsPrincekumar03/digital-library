@@ -3,7 +3,7 @@ const { body, param, validationResult } = require('express-validator');
 const createAuthorRules = [
   body('name').trim().notEmpty().withMessage('Author name is required')
     .isLength({ max: 150 }).withMessage('Author name too long'),
-  body('bio').optional({ nullable: true }).isString(),
+  body('bio').optional({ nullable: true }).isString().isLength({ max: 2000 }).withMessage('Bio too long'),
 ];
 
 const updateAuthorRules = createAuthorRules;

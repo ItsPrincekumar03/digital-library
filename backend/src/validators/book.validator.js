@@ -4,16 +4,16 @@ const { VALID_STATUSES } = require('../repositories/book.repository');
 const createBookRules = [
     body('title').trim().notEmpty().withMessage('Title is required')
         .isLength({ max: 255 }).withMessage('Title too long'),
-    body('description').optional({ nullable: true }).isString(),
-    body('coverPath').optional({ nullable: true }).isString(),
+    body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('Description too long'),
+    body('coverPath').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('Cover path too long'),
     body('publicationDate').optional({ nullable: true }).isISO8601().withMessage('Invalid publication date'),
 ];
 
 const updateBookRules = [
     body('title').trim().notEmpty().withMessage('Title is required')
         .isLength({ max: 255 }).withMessage('Title too long'),
-    body('description').optional({ nullable: true }).isString(),
-    body('coverPath').optional({ nullable: true }).isString(),
+    body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('Description too long'),
+    body('coverPath').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('Cover path too long'),
     body('publicationDate').optional({ nullable: true }).isISO8601().withMessage('Invalid publication date'),
     body('status').optional().isIn(VALID_STATUSES).withMessage('Invalid book status'),
 ];

@@ -10,8 +10,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Routes
+const profileRoutes = require('./routes/profile.routes');
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', profileRoutes);
 
 // Fallback 404
 app.use((req, res) => {

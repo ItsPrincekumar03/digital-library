@@ -38,5 +38,47 @@ async function createUser({ fullName, email, passwordHash, roleId }) {
     );
     return result.insertId;
 }
+async function findByEmailExcludingUser(email, excludeUserId) {
+    const [rows] = await pool.query(
+        'SELECT user_id FROM users WHERE email = ? AND user_id != ? LIMIT 1',
+        [email, excludeUserId]
+    );
+    return rows[0] || null;
+}
 
-module.exports = { findByEmail, findById, findRoleIdByName, createUser };
+async function updateProfile(userId, { fullName, email }) {
+    await pool.query(
+        `UPDATE users
+     SET full_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = ?`,
+        [fullName, email, userId]
+    );
+}
+
+async function updatePassword(userId, newPasswordHash) {
+    await pool.query(
+        `UPDATE users
+     SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = ?`,
+        [newPasswordHash, userId]
+    );
+}
+
+async function findPasswordHashById(userId) {
+    const [rows] = await pool.query(
+        'SELECT password_hash FROM users WHERE user_id = ? LIMIT 1',
+        [userId]
+    );
+    return rows[0] ? rows[0].password_hash : null;
+}
+
+module.exports = {
+    findByEmail,
+    findById,
+    findRoleIdByName,
+    createUser,
+    findByEmailExcludingUser,
+    updateProfile,
+    updatePassword,
+    findPasswordHashById,
+};

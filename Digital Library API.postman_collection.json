@@ -1,0 +1,81 @@
+{
+  "info": {
+    "name": "Digital Library API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        { "name": "Health Check", "request": { "method": "GET", "url": "http://localhost:5000/api/health" } },
+        { "name": "DB Health Check", "request": { "method": "GET", "url": "http://localhost:5000/api/health/db" } }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        { "name": "Register", "request": { "method": "POST", "url": "http://localhost:5000/api/auth/register", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"fullName\":\"John Doe\",\"email\":\"johndoe@test.com\",\"password\":\"Password123!\"}" } } },
+        { "name": "Login", "request": { "method": "POST", "url": "http://localhost:5000/api/auth/login", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"email\":\"johndoe@test.com\",\"password\":\"Password123!\"}" } } },
+        { "name": "Me", "request": { "method": "GET", "url": "http://localhost:5000/api/auth/me" } },
+        { "name": "Admin Check", "request": { "method": "GET", "url": "http://localhost:5000/api/auth/admin-check" } },
+        { "name": "Logout", "request": { "method": "POST", "url": "http://localhost:5000/api/auth/logout" } }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        { "name": "Get Profile", "request": { "method": "GET", "url": "http://localhost:5000/api/users/profile" } },
+        { "name": "Update Profile", "request": { "method": "PUT", "url": "http://localhost:5000/api/users/profile", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"fullName\":\"John Doe Updated\",\"email\":\"johndoe@test.com\"}" } } },
+        { "name": "Change Password", "request": { "method": "PUT", "url": "http://localhost:5000/api/users/change-password", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"currentPassword\":\"Password123!\",\"newPassword\":\"NewPassword123!\"}" } } }
+      ]
+    },
+    {
+      "name": "Authors",
+      "item": [
+        { "name": "Create Author", "request": { "method": "POST", "url": "http://localhost:5000/api/authors", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"name\":\"Sample Author\",\"bio\":\"Bio here\"}" } } },
+        { "name": "Get Authors", "request": { "method": "GET", "url": "http://localhost:5000/api/authors" } },
+        { "name": "Get Author by ID", "request": { "method": "GET", "url": "http://localhost:5000/api/authors/1" } },
+        { "name": "Update Author", "request": { "method": "PUT", "url": "http://localhost:5000/api/authors/1", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"name\":\"Updated Author\",\"bio\":\"Updated bio\"}" } } },
+        { "name": "Archive Author", "request": { "method": "PATCH", "url": "http://localhost:5000/api/authors/1/archive" } }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        { "name": "Create Category", "request": { "method": "POST", "url": "http://localhost:5000/api/categories", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"name\":\"Sample Category\",\"description\":\"Desc here\"}" } } },
+        { "name": "Get Categories", "request": { "method": "GET", "url": "http://localhost:5000/api/categories" } },
+        { "name": "Get Category by ID", "request": { "method": "GET", "url": "http://localhost:5000/api/categories/1" } },
+        { "name": "Update Category", "request": { "method": "PUT", "url": "http://localhost:5000/api/categories/1", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"name\":\"Updated Category\",\"description\":\"Updated desc\"}" } } },
+        { "name": "Archive Category", "request": { "method": "PATCH", "url": "http://localhost:5000/api/categories/1/archive" } }
+      ]
+    },
+    {
+      "name": "Books",
+      "item": [
+        { "name": "Create Book", "request": { "method": "POST", "url": "http://localhost:5000/api/books", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"title\":\"Sample Book\",\"description\":\"Desc here\"}" } } },
+        { "name": "Get Books", "request": { "method": "GET", "url": "http://localhost:5000/api/books" } },
+        { "name": "Get Book by ID", "request": { "method": "GET", "url": "http://localhost:5000/api/books/1" } },
+        { "name": "Update Book", "request": { "method": "PUT", "url": "http://localhost:5000/api/books/1", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"title\":\"Updated Book\"}" } } },
+        { "name": "Archive Book", "request": { "method": "PATCH", "url": "http://localhost:5000/api/books/1/archive" } },
+        { "name": "Add Author to Book", "request": { "method": "POST", "url": "http://localhost:5000/api/books/1/authors", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"authorId\":1}" } } },
+        { "name": "Get Book Authors", "request": { "method": "GET", "url": "http://localhost:5000/api/books/1/authors" } },
+        { "name": "Remove Author from Book", "request": { "method": "DELETE", "url": "http://localhost:5000/api/books/1/authors/1" } },
+        { "name": "Add Category to Book", "request": { "method": "POST", "url": "http://localhost:5000/api/books/1/categories", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"categoryId\":1}" } } },
+        { "name": "Get Book Categories", "request": { "method": "GET", "url": "http://localhost:5000/api/books/1/categories" } },
+        { "name": "Remove Category from Book", "request": { "method": "DELETE", "url": "http://localhost:5000/api/books/1/categories/1" } }
+      ]
+    },
+    {
+      "name": "Chapters",
+      "item": [
+        { "name": "Create Chapter", "request": { "method": "POST", "url": "http://localhost:5000/api/books/1/chapters", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"title\":\"Chapter 1\",\"content\":\"Content here\",\"chapterNumber\":1}" } } },
+        { "name": "Get Chapters", "request": { "method": "GET", "url": "http://localhost:5000/api/books/1/chapters" } },
+        { "name": "Reorder Chapters", "request": { "method": "PATCH", "url": "http://localhost:5000/api/books/1/chapters/reorder", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"order\":[{\"chapterId\":1,\"chapterNumber\":2}]}" } } },
+        { "name": "Get Chapter by ID", "request": { "method": "GET", "url": "http://localhost:5000/api/chapters/1" } },
+        { "name": "Update Chapter", "request": { "method": "PUT", "url": "http://localhost:5000/api/chapters/1", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\"title\":\"Updated Chapter\",\"chapterNumber\":1}" } } },
+        { "name": "Publish Chapter", "request": { "method": "PATCH", "url": "http://localhost:5000/api/chapters/1/publish" } },
+        { "name": "Archive Chapter", "request": { "method": "PATCH", "url": "http://localhost:5000/api/chapters/1/archive" } }
+      ]
+    }
+  ]
+}

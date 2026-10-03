@@ -9,14 +9,14 @@ async function create(req, res, next) {
 
 async function getForBook(req, res, next) {
     try {
-        const chapters = await chapterService.getChaptersForBook(req.params.bookId);
+        const chapters = await chapterService.getChaptersForBook(req.params.bookId, req.user);
         res.status(200).json({ success: true, data: { chapters } });
     } catch (err) { next(err); }
 }
 
 async function getById(req, res, next) {
     try {
-        const chapter = await chapterService.getChapterById(req.params.id);
+        const chapter = await chapterService.getChapterById(req.params.id, req.user);
         res.status(200).json({ success: true, data: { chapter } });
     } catch (err) { next(err); }
 }

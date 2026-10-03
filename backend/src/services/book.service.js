@@ -4,6 +4,20 @@ const {
     parseSort,
     buildPaginationMeta
 } = require('../utils/pagination');
+const {
+    PUBLIC_BOOK_STATUS,
+    isAdmin,
+    isBookPubliclyReadable
+} = require('../utils/bookVisibility');
+
+// Module 8.5 — PUBLIC LIBRARY RULES
+//   * Public books are managed by ADMIN only (create / edit / publish / archive).
+//   * Normal users can only READ books whose status is PUBLISHED.
+//   * Lifecycle used by the API: DRAFT -> PUBLISHED -> ARCHIVED.
+//   * Old statuses (PENDING_REVIEW, APPROVED, REJECTED) stay in the DB ENUM for
+//     compatibility but are never written and never visible to normal users.
+//   * Private user PDFs (Module 12) will use their own table (user_pdf_books),
+//     NOT this books table.
 
 function notFound() {
     const err = new Error('Book not found.');
@@ -13,13 +27,19 @@ function notFound() {
 
 function forbidden(message) {
     const err = new Error(
-        message || 'You do not have permission to modify this book.'
+        message || 'Only an admin can manage public library books.'
     );
     err.status = 403;
     return err;
 }
 
-const USER_ALLOWED_STATUSES = ['DRAFT', 'PENDING_REVIEW'];
+// Defense in depth: routes already use requireRole('ADMIN'),
+// but the service refuses non-admins too.
+function assertAdmin(requestingUser) {
+    if (!isAdmin(requestingUser)) {
+        throw forbidden();
+    }
+}
 
 const BOOK_SORT_COLUMNS = [
     'created_at',
@@ -28,12 +48,21 @@ const BOOK_SORT_COLUMNS = [
     'publication_date'
 ];
 
+// Admin sees every status. Everyone else only sees PUBLISHED.
+function statusFilterFor(requestingUser) {
+    return isAdmin(requestingUser) ? undefined : PUBLIC_BOOK_STATUS;
+}
+
+// Admin-only. New public books always start as DRAFT.
+// owner_id records which admin created the book.
 async function createBook(
-    ownerUserId,
+    requestingUser,
     { title, description, coverPath, publicationDate }
 ) {
+    assertAdmin(requestingUser);
+
     const bookId = await bookRepository.create({
-        ownerUserId,
+        ownerUserId: requestingUser.user_id,
         title,
         description,
         coverPath,
@@ -43,11 +72,11 @@ async function createBook(
     return bookRepository.findById(bookId);
 }
 
-async function getAllBooks() {
-    return bookRepository.findAll();
+async function getAllBooks(requestingUser) {
+    return bookRepository.findAll(statusFilterFor(requestingUser));
 }
 
-async function getAllBooksPaginated(query) {
+async function getAllBooksPaginated(requestingUser, query) {
     const { page, limit, offset } = parsePagination(query);
 
     const { column, direction } = parseSort(
@@ -56,14 +85,17 @@ async function getAllBooksPaginated(query) {
         'created_at'
     );
 
+    const status = statusFilterFor(requestingUser);
+
     const [books, totalItems] = await Promise.all([
         bookRepository.findAllPaginated({
             limit,
             offset,
             sortColumn: column,
-            sortDirection: direction
+            sortDirection: direction,
+            status
         }),
-        bookRepository.countAll()
+        bookRepository.countAll(status)
     ]);
 
     return {
@@ -76,33 +108,32 @@ async function getAllBooksPaginated(query) {
     };
 }
 
-async function getBookById(bookId) {
+// Hidden books (draft / archived / legacy) look like "not found" to normal users.
+async function getBookById(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
 
     if (!book) {
+        throw notFound();
+    }
+
+    if (!isAdmin(requestingUser) && !isBookPubliclyReadable(book)) {
         throw notFound();
     }
 
     return book;
 }
 
-// requestingUser: { user_id, role_name }
 async function updateBook(
     bookId,
     requestingUser,
     { title, description, coverPath, publicationDate, status }
 ) {
+    assertAdmin(requestingUser);
+
     const book = await bookRepository.findById(bookId);
 
     if (!book) {
         throw notFound();
-    }
-
-    const isAdmin = requestingUser.role_name === 'ADMIN';
-    const isOwner = book.owner_id === requestingUser.user_id;
-
-    if (!isAdmin && !isOwner) {
-        throw forbidden("You cannot modify another user's book.");
     }
 
     const fields = {
@@ -112,15 +143,8 @@ async function updateBook(
         publication_date: publicationDate ?? null
     };
 
+    // The validator only allows DRAFT / PUBLISHED / ARCHIVED here.
     if (status !== undefined) {
-        if (!isAdmin) {
-            if (!USER_ALLOWED_STATUSES.includes(status)) {
-                throw forbidden(
-                    'Only an admin can approve, reject, publish, or archive a book.'
-                );
-            }
-        }
-
         fields.status = status;
     }
 
@@ -129,15 +153,27 @@ async function updateBook(
     return bookRepository.findById(bookId);
 }
 
-async function archiveBook(bookId, requestingUser) {
+async function publishBook(bookId, requestingUser) {
+    assertAdmin(requestingUser);
+
     const book = await bookRepository.findById(bookId);
 
     if (!book) {
         throw notFound();
     }
 
-    if (requestingUser.role_name !== 'ADMIN') {
-        throw forbidden('Only an admin can archive a book.');
+    await bookRepository.setStatus(bookId, PUBLIC_BOOK_STATUS);
+
+    return bookRepository.findById(bookId);
+}
+
+async function archiveBook(bookId, requestingUser) {
+    assertAdmin(requestingUser);
+
+    const book = await bookRepository.findById(bookId);
+
+    if (!book) {
+        throw notFound();
     }
 
     await bookRepository.archive(bookId);
@@ -151,5 +187,6 @@ module.exports = {
     getAllBooksPaginated,
     getBookById,
     updateBook,
+    publishBook,
     archiveBook
 };

@@ -1,5 +1,13 @@
 const bookRepository = require('../repositories/book.repository');
 const chapterRepository = require('../repositories/chapter.repository');
+const {
+    isAdmin,
+    isBookPubliclyReadable,
+    isChapterPubliclyReadable,
+} = require('../utils/bookVisibility');
+
+// Module 8.5: chapters belong to PUBLIC library books, so they are ADMIN-managed.
+// Normal users can only read PUBLISHED chapters of PUBLISHED books.
 
 function notFound(message) {
     const err = new Error(message);
@@ -17,19 +25,18 @@ function forbidden(message) {
     return err;
 }
 
-async function assertBookOwnershipOrAdmin(bookId, requestingUser) {
+// Admin-only. (Routes already use requireRole('ADMIN'); this is defense in depth.)
+async function assertAdminAndBook(bookId, requestingUser) {
+    if (!isAdmin(requestingUser)) throw forbidden('Only an admin can manage chapters of public books.');
+
     const book = await bookRepository.findById(bookId);
     if (!book) throw notFound('Book not found.');
 
-    const isAdmin = requestingUser.role_name === 'ADMIN';
-    const isOwner = book.owner_id === requestingUser.user_id;
-    if (!isAdmin && !isOwner) throw forbidden("You cannot modify chapters of another user's book.");
-
-    return { book, isAdmin };
+    return book;
 }
 
 async function createChapter(bookId, requestingUser, { chapterNumber, title, content }) {
-    await assertBookOwnershipOrAdmin(bookId, requestingUser);
+    await assertAdminAndBook(bookId, requestingUser);
 
     const clash = await chapterRepository.findByBookAndNumber(bookId, chapterNumber);
     if (clash) throw conflict('A chapter with this number already exists for this book.');
@@ -38,15 +45,28 @@ async function createChapter(bookId, requestingUser, { chapterNumber, title, con
     return chapterRepository.findById(chapterId);
 }
 
-async function getChaptersForBook(bookId) {
+async function getChaptersForBook(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
     if (!book) throw notFound('Book not found.');
-    return chapterRepository.findByBook(bookId);
+
+    const chapters = await chapterRepository.findByBook(bookId);
+    if (isAdmin(requestingUser)) return chapters;
+
+    // Normal user: the book must be public, and only published chapters are returned.
+    if (!isBookPubliclyReadable(book)) throw notFound('Book not found.');
+    return chapters.filter(isChapterPubliclyReadable);
 }
 
-async function getChapterById(chapterId) {
+async function getChapterById(chapterId, requestingUser) {
     const chapter = await chapterRepository.findById(chapterId);
     if (!chapter) throw notFound('Chapter not found.');
+
+    if (isAdmin(requestingUser)) return chapter;
+
+    const book = await bookRepository.findById(chapter.book_id);
+    if (!isBookPubliclyReadable(book) || !isChapterPubliclyReadable(chapter)) {
+        throw notFound('Chapter not found.');
+    }
     return chapter;
 }
 
@@ -54,7 +74,7 @@ async function updateChapter(chapterId, requestingUser, { chapterNumber, title, 
     const chapter = await chapterRepository.findById(chapterId);
     if (!chapter) throw notFound('Chapter not found.');
 
-    await assertBookOwnershipOrAdmin(chapter.book_id, requestingUser);
+    await assertAdminAndBook(chapter.book_id, requestingUser);
 
     if (chapterNumber !== chapter.chapter_number) {
         const clash = await chapterRepository.findByBookAndNumber(chapter.book_id, chapterNumber);
@@ -66,31 +86,31 @@ async function updateChapter(chapterId, requestingUser, { chapterNumber, title, 
 }
 
 async function publishChapter(chapterId, requestingUser) {
-    const chapter = await chapterRepository.findById(chapterId);
-    if (!chapter) throw notFound('Chapter not found.');
-
-    if (requestingUser.role_name !== 'ADMIN') {
+    if (!isAdmin(requestingUser)) {
         throw forbidden('Only an admin can publish a chapter.');
     }
+
+    const chapter = await chapterRepository.findById(chapterId);
+    if (!chapter) throw notFound('Chapter not found.');
 
     await chapterRepository.setStatus(chapterId, 'PUBLISHED');
     return chapterRepository.findById(chapterId);
 }
 
 async function archiveChapter(chapterId, requestingUser) {
-    const chapter = await chapterRepository.findById(chapterId);
-    if (!chapter) throw notFound('Chapter not found.');
-
-    if (requestingUser.role_name !== 'ADMIN') {
+    if (!isAdmin(requestingUser)) {
         throw forbidden('Only an admin can archive a chapter.');
     }
+
+    const chapter = await chapterRepository.findById(chapterId);
+    if (!chapter) throw notFound('Chapter not found.');
 
     await chapterRepository.setStatus(chapterId, 'ARCHIVED');
     return chapterRepository.findById(chapterId);
 }
 
 async function reorderChapters(bookId, requestingUser, order) {
-    await assertBookOwnershipOrAdmin(bookId, requestingUser);
+    await assertAdminAndBook(bookId, requestingUser);
 
     const existingChapters = await chapterRepository.findByBook(bookId);
     const existingIds = new Set(existingChapters.map((c) => c.chapter_id));

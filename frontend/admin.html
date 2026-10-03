@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Administration | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="admin" data-access="admin">
+
+    <div id="site-header"></div>
+
+    <main class="container page-main">
+
+        <section class="card">
+
+            <p class="eyebrow">Administration</p>
+
+            <h1>Admin foundation</h1>
+
+            <p class="muted">
+                This protected page verifies frontend role-based access.
+                Public book management remains governed by the backend and
+                its existing APIs.
+            </p>
+
+            <div id="admin-content">
+
+                <div class="loading-state" role="status">
+                    Checking administrator access…
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <div id="site-footer"></div>
+
+</body>
+
+</html>

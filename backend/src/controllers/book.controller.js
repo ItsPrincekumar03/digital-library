@@ -3,7 +3,7 @@ const bookService = require('../services/book.service');
 async function create(req, res, next) {
     try {
         const book = await bookService.createBook(
-            req.user.user_id,
+            req.user,
             req.body
         );
 
@@ -26,7 +26,7 @@ async function getAll(req, res, next) {
             req.query.order
         ) {
             const { books, meta } =
-                await bookService.getAllBooksPaginated(req.query);
+                await bookService.getAllBooksPaginated(req.user, req.query);
 
             return res.status(200).json({
                 success: true,
@@ -37,7 +37,7 @@ async function getAll(req, res, next) {
             });
         }
 
-        const books = await bookService.getAllBooks();
+        const books = await bookService.getAllBooks(req.user);
 
         res.status(200).json({
             success: true,
@@ -50,7 +50,7 @@ async function getAll(req, res, next) {
 
 async function getById(req, res, next) {
     try {
-        const book = await bookService.getBookById(req.params.id);
+        const book = await bookService.getBookById(req.params.id, req.user);
 
         res.status(200).json({
             success: true,
@@ -72,6 +72,23 @@ async function update(req, res, next) {
         res.status(200).json({
             success: true,
             message: 'Book updated.',
+            data: { book }
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function publish(req, res, next) {
+    try {
+        const book = await bookService.publishBook(
+            req.params.id,
+            req.user
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Book published.',
             data: { book }
         });
     } catch (err) {
@@ -101,5 +118,6 @@ module.exports = {
     getAll,
     getById,
     update,
+    publish,
     archive
 };

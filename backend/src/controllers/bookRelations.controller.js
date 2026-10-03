@@ -16,7 +16,7 @@ async function removeAuthor(req, res, next) {
 
 async function getAuthors(req, res, next) {
     try {
-        const authors = await relationsService.getAuthorsOfBook(req.params.bookId);
+        const authors = await relationsService.getAuthorsOfBook(req.params.bookId, req.user);
         res.status(200).json({ success: true, data: { authors } });
     } catch (err) { next(err); }
 }
@@ -37,7 +37,7 @@ async function removeCategory(req, res, next) {
 
 async function getCategories(req, res, next) {
     try {
-        const categories = await relationsService.getCategoriesOfBook(req.params.bookId);
+        const categories = await relationsService.getCategoriesOfBook(req.params.bookId, req.user);
         res.status(200).json({ success: true, data: { categories } });
     } catch (err) { next(err); }
 }

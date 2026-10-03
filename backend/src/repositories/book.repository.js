@@ -1,6 +1,12 @@
 const { pool } = require('../config/database');
 
+// Every value the database ENUM still allows (kept for compatibility with old data).
 const VALID_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED'];
+
+// Module 8.5: the only statuses the API will WRITE for public books.
+// PENDING_REVIEW / APPROVED / REJECTED are legacy values from the old
+// submission workflow. They may still exist in old rows but are never set again.
+const WRITABLE_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
 
 async function create({ ownerUserId, title, description, coverPath, publicationDate }) {
     const [result] = await pool.query(
@@ -11,7 +17,15 @@ async function create({ ownerUserId, title, description, coverPath, publicationD
     return result.insertId;
 }
 
-async function findAll() {
+// status (optional): when given, only books with that status are returned.
+async function findAll(status) {
+    if (status) {
+        const [rows] = await pool.query(
+            'SELECT * FROM books WHERE status = ? ORDER BY created_at DESC',
+            [status]
+        );
+        return rows;
+    }
     const [rows] = await pool.query('SELECT * FROM books ORDER BY created_at DESC');
     return rows;
 }
@@ -36,7 +50,22 @@ async function archive(bookId) {
     await pool.query("UPDATE books SET status = 'ARCHIVED', updated_at = CURRENT_TIMESTAMP WHERE book_id = ?", [bookId]);
 }
 
-async function findAllPaginated({ limit, offset, sortColumn, sortDirection }) {
+async function setStatus(bookId, status) {
+    await pool.query(
+        'UPDATE books SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE book_id = ?',
+        [status, bookId]
+    );
+}
+
+// sortColumn / sortDirection are checked against a whitelist in the service layer.
+async function findAllPaginated({ limit, offset, sortColumn, sortDirection, status }) {
+    if (status) {
+        const [rows] = await pool.query(
+            `SELECT * FROM books WHERE status = ? ORDER BY ${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
+            [status, limit, offset]
+        );
+        return rows;
+    }
     const [rows] = await pool.query(
         `SELECT * FROM books ORDER BY ${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
         [limit, offset]
@@ -44,9 +73,16 @@ async function findAllPaginated({ limit, offset, sortColumn, sortDirection }) {
     return rows;
 }
 
-async function countAll() {
+async function countAll(status) {
+    if (status) {
+        const [rows] = await pool.query('SELECT COUNT(*) AS total FROM books WHERE status = ?', [status]);
+        return rows[0].total;
+    }
     const [rows] = await pool.query('SELECT COUNT(*) AS total FROM books');
     return rows[0].total;
 }
 
-module.exports = { create, findAll, findById, updateFields, archive, VALID_STATUSES, findAllPaginated, countAll };
+module.exports = {
+    create, findAll, findById, updateFields, archive, setStatus,
+    VALID_STATUSES, WRITABLE_STATUSES, findAllPaginated, countAll,
+};

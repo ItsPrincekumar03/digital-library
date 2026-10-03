@@ -1,5 +1,5 @@
 const { body, param, validationResult } = require('express-validator');
-const { VALID_STATUSES } = require('../repositories/book.repository');
+const { WRITABLE_STATUSES } = require('../repositories/book.repository');
 
 const createBookRules = [
     body('title').trim().notEmpty().withMessage('Title is required')
@@ -15,7 +15,7 @@ const updateBookRules = [
     body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('Description too long'),
     body('coverPath').optional({ nullable: true }).isString().isLength({ max: 500 }).withMessage('Cover path too long'),
     body('publicationDate').optional({ nullable: true }).isISO8601().withMessage('Invalid publication date'),
-    body('status').optional().isIn(VALID_STATUSES).withMessage('Invalid book status'),
+    body('status').optional().isIn(WRITABLE_STATUSES).withMessage('Invalid book status. Allowed: DRAFT, PUBLISHED, ARCHIVED'),
 ];
 
 const idParamRule = [param('id').isInt({ min: 1 }).withMessage('Invalid book ID')];

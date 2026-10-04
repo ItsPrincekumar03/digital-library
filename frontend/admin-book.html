@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manage Book | Digital Library</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <script type="module" src="js/router.js"></script>
+</head>
+<body data-page="admin-book" data-access="admin">
+
+    <div id="site-header"></div>
+
+    <main class="container page-main">
+        <p class="back-link">
+            <a href="admin.html">← Back to Admin Dashboard</a>
+        </p>
+
+        <section class="card">
+            <p class="eyebrow">Manage Content</p>
+            <h1 id="book-title-header">Loading...</h1>
+            <p class="muted" id="book-status">Status: Loading...</p>
+
+            <div id="admin-book-content" hidden>
+                <div class="tabs">
+                    <button class="button button-primary tab-button active" data-tab="relations">Relationships</button>
+                    <button class="button button-secondary tab-button" data-tab="chapters">Chapters</button>
+                </div>
+
+                <!-- Relationships Tab -->
+                <div id="tab-relations" class="tab-content active">
+                    <div class="form-field">
+                        <h2>Authors</h2>
+                        <div id="current-authors" class="detail-list">Loading...</div>
+                        
+                        <form id="add-author-form" class="library-search-row" style="margin-top: 1rem;">
+                            <select id="author-select" required>
+                                <option value="">Select an author to add...</option>
+                            </select>
+                            <button type="submit" class="button button-primary">Add Author</button>
+                        </form>
+                    </div>
+
+                    <hr>
+
+                    <div class="form-field">
+                        <h2>Categories</h2>
+                        <div id="current-categories" class="detail-list">Loading...</div>
+
+                        <form id="add-category-form" class="library-search-row" style="margin-top: 1rem;">
+                            <select id="category-select" required>
+                                <option value="">Select a category to add...</option>
+                            </select>
+                            <button type="submit" class="button button-primary">Add Category</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Chapters Tab -->
+                <div id="tab-chapters" class="tab-content" hidden>
+                    <div class="tab-header">
+                        <h2>Chapters</h2>
+                        <button class="button button-primary" id="btn-create-chapter">Create Chapter</button>
+                    </div>
+                    
+                    <ul id="chapters-list" class="chapter-list">
+                        <li class="muted">Loading chapters...</li>
+                    </ul>
+
+                    <div style="margin-top: 1rem;">
+                        <button class="button button-secondary" id="btn-save-order" hidden>Save Chapter Order</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modals -->
+        <dialog id="chapter-modal" class="modal">
+            <form id="chapter-form" method="dialog">
+                <h3 id="chapter-modal-title">Create Chapter</h3>
+                <input type="hidden" id="chapter-id">
+                <div class="form-field">
+                    <label for="chapter-title">Title</label>
+                    <input type="text" id="chapter-title" required>
+                </div>
+                <div class="form-field">
+                    <label for="chapter-number">Chapter Number</label>
+                    <input type="number" id="chapter-number" step="0.1" required>
+                </div>
+                <div class="form-field">
+                    <label for="chapter-content">Content</label>
+                    <textarea id="chapter-content" rows="10" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="button button-secondary" id="btn-cancel-chapter">Cancel</button>
+                    <button type="submit" class="button button-primary">Save</button>
+                </div>
+            </form>
+        </dialog>
+    </main>
+
+    <div id="site-footer"></div>
+</body>
+</html>

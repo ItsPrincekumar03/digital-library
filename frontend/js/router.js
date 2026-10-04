@@ -22,6 +22,7 @@ function getSafeReturnUrl() {
             "index.html",
             "profile.html",
             "admin.html",
+            "admin-book.html",
             "library.html",
             "book.html"
         ];
@@ -110,6 +111,7 @@ async function boot() {
         register: "./pages/register.js",
         profile: "./pages/profile.js",
         admin: "./pages/admin.js",
+        "admin-book": "./pages/admin-book.js",
         library: "./pages/library.js",
         book: "./pages/book.js"
     };

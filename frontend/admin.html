@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/admin.css">
 
     <script type="module" src="js/router.js"></script>
 </head>
@@ -23,26 +24,113 @@
     <main class="container page-main">
 
         <section class="card">
-
             <p class="eyebrow">Administration</p>
-
-            <h1>Admin foundation</h1>
-
-            <p class="muted">
-                This protected page verifies frontend role-based access.
-                Public book management remains governed by the backend and
-                its existing APIs.
-            </p>
-
+            <h1>Dashboard</h1>
+            
             <div id="admin-content">
-
-                <div class="loading-state" role="status">
+                <div class="loading-state" id="admin-loading" role="status">
                     Checking administrator access…
                 </div>
 
-            </div>
+                <div id="admin-dashboard" hidden>
+                    <div class="tabs">
+                        <button class="button button-primary tab-button active" data-tab="books">Books</button>
+                        <button class="button button-secondary tab-button" data-tab="authors">Authors</button>
+                        <button class="button button-secondary tab-button" data-tab="categories">Categories</button>
+                    </div>
 
+                    <div id="tab-books" class="tab-content active">
+                        <div class="tab-header">
+                            <h2>Manage Books</h2>
+                            <button class="button button-primary" id="btn-create-book">Create New Book</button>
+                        </div>
+                        <div id="books-list" class="data-list">Loading books...</div>
+                    </div>
+
+                    <div id="tab-authors" class="tab-content" hidden>
+                        <div class="tab-header">
+                            <h2>Manage Authors</h2>
+                            <button class="button button-primary" id="btn-create-author">Create Author</button>
+                        </div>
+                        <div id="authors-list" class="data-list">Loading authors...</div>
+                    </div>
+
+                    <div id="tab-categories" class="tab-content" hidden>
+                        <div class="tab-header">
+                            <h2>Manage Categories</h2>
+                            <button class="button button-primary" id="btn-create-category">Create Category</button>
+                        </div>
+                        <div id="categories-list" class="data-list">Loading categories...</div>
+                    </div>
+                </div>
+            </div>
         </section>
+
+        <!-- Modals for simple entities -->
+        <dialog id="author-modal" class="modal">
+            <form id="author-form" method="dialog">
+                <h3 id="author-modal-title">Create Author</h3>
+                <input type="hidden" id="author-id">
+                <div class="form-field">
+                    <label for="author-name">Name</label>
+                    <input type="text" id="author-name" required>
+                </div>
+                <div class="form-field">
+                    <label for="author-bio">Biography</label>
+                    <textarea id="author-bio"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="button button-secondary" id="btn-cancel-author">Cancel</button>
+                    <button type="submit" class="button button-primary">Save</button>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog id="category-modal" class="modal">
+            <form id="category-form" method="dialog">
+                <h3 id="category-modal-title">Create Category</h3>
+                <input type="hidden" id="category-id">
+                <div class="form-field">
+                    <label for="category-name">Name</label>
+                    <input type="text" id="category-name" required>
+                </div>
+                <div class="form-field">
+                    <label for="category-description">Description</label>
+                    <textarea id="category-description"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="button button-secondary" id="btn-cancel-category">Cancel</button>
+                    <button type="submit" class="button button-primary">Save</button>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog id="book-modal" class="modal">
+            <form id="book-form" method="dialog">
+                <h3 id="book-modal-title">Create Book</h3>
+                <input type="hidden" id="book-id">
+                <div class="form-field">
+                    <label for="book-title">Title</label>
+                    <input type="text" id="book-title" required>
+                </div>
+                <div class="form-field">
+                    <label for="book-description">Description</label>
+                    <textarea id="book-description"></textarea>
+                </div>
+                <div class="form-field">
+                    <label for="book-cover">Cover Path</label>
+                    <input type="text" id="book-cover">
+                </div>
+                <div class="form-field">
+                    <label for="book-date">Publication Date</label>
+                    <input type="date" id="book-date">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="button button-secondary" id="btn-cancel-book">Cancel</button>
+                    <button type="submit" class="button button-primary">Save</button>
+                </div>
+            </form>
+        </dialog>
 
     </main>
 

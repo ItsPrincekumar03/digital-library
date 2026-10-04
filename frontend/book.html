@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Book information in the Digital Library.">
+    <title>Book | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/library.css">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="book" data-access="public">
+    <div id="site-header"></div>
+
+    <main class="container page-main">
+        <p class="back-link">
+            <a href="library.html">← Back to library</a>
+        </p>
+
+        <div id="book-loading" class="loading-state" role="status" aria-live="polite">
+            Loading book…
+        </div>
+
+        <div id="book-error" class="form-message error-message" role="alert" hidden></div>
+
+        <article id="book-detail" class="book-detail card" hidden>
+            <div class="book-detail-cover-wrap">
+                <img id="book-cover" class="book-detail-cover" alt="" hidden>
+                <div id="book-cover-placeholder" class="cover-placeholder" aria-hidden="true">
+                    No cover
+                </div>
+            </div>
+
+            <div class="book-detail-content">
+                <p class="eyebrow">Public book</p>
+                <h1 id="book-title"></h1>
+                <p id="book-publication" class="muted" hidden></p>
+                <p id="book-description" class="book-description" hidden></p>
+
+                <section class="detail-section" aria-labelledby="authors-heading">
+                    <h2 id="authors-heading">Authors</h2>
+                    <div id="book-authors" class="detail-list"></div>
+                    <p id="authors-empty" class="muted" hidden>
+                        No author information is available.
+                    </p>
+                </section>
+
+                <section class="detail-section" aria-labelledby="categories-heading">
+                    <h2 id="categories-heading">Categories</h2>
+                    <div id="book-categories" class="detail-list"></div>
+                    <p id="categories-empty" class="muted" hidden>
+                        No category information is available.
+                    </p>
+                </section>
+
+                <section class="detail-section" aria-labelledby="chapters-heading">
+                    <h2 id="chapters-heading">Chapters</h2>
+                    <ol id="book-chapters" class="chapter-list"></ol>
+                    <p id="chapters-empty" class="muted" hidden>
+                        No published chapters are available.
+                    </p>
+                </section>
+            </div>
+        </article>
+    </main>
+
+    <div id="site-footer"></div>
+</body>
+
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Browse published books in the Digital Library.">
+    <title>Public Library | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/library.css">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="library" data-access="public">
+    <div id="site-header"></div>
+
+    <main class="container page-main">
+        <header class="library-heading">
+            <p class="eyebrow">Public collection</p>
+
+            <h1>Library</h1>
+
+            <p class="muted">
+                Browse published books. Search and category filtering apply to
+                the books on the current page.
+            </p>
+        </header>
+
+        <section class="library-controls card" aria-labelledby="library-controls-heading">
+            <h2 id="library-controls-heading" class="visually-hidden">
+                Search and filter books
+            </h2>
+
+            <form id="library-search-form" class="library-search">
+                <div class="form-field library-search-field">
+                    <label for="library-search">
+                        Search this page
+                    </label>
+
+                    <!--
+                        Input and buttons are intentionally inside the same
+                        row so they stay horizontally aligned on desktop.
+                    -->
+                    <div class="library-search-row">
+                        <input id="library-search" name="search" type="search" maxlength="200" autocomplete="off"
+                            aria-describedby="search-help" placeholder="Search titles and descriptions">
+
+                        <button class="button button-primary" type="submit">
+                            Search
+                        </button>
+
+                        <button class="button button-secondary" id="clear-search" type="button">
+                            Clear search
+                        </button>
+                    </div>
+
+                    <small id="search-help" class="field-hint">
+                        Search only includes books on the currently loaded page.
+                    </small>
+                </div>
+            </form>
+
+            <div class="library-filters">
+                <div class="form-field">
+                    <label for="category-filter">
+                        Category
+                    </label>
+
+                    <select id="category-filter" name="category">
+                        <option value="">
+                            All categories
+                        </option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label for="sort-filter">
+                        Sort books
+                    </label>
+
+                    <select id="sort-filter" name="sort">
+                        <option value="created_at:DESC">
+                            Recently added
+                        </option>
+
+                        <option value="title:ASC">
+                            Title A to Z
+                        </option>
+
+                        <option value="title:DESC">
+                            Title Z to A
+                        </option>
+
+                        <option value="publication_date:DESC">
+                            Publication date, newest
+                        </option>
+
+                        <option value="publication_date:ASC">
+                            Publication date, oldest
+                        </option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="library-results" aria-labelledby="results-heading">
+            <div class="results-heading-row">
+                <h2 id="results-heading">
+                    Books
+                </h2>
+
+                <p id="results-summary" class="muted" aria-live="polite"></p>
+            </div>
+
+            <p id="library-status" class="form-message" role="status" aria-live="polite" hidden></p>
+
+            <div id="library-loading" class="loading-state" role="status" aria-live="polite" hidden>
+                Loading books…
+            </div>
+
+            <div id="library-error" class="form-message error-message" role="alert" hidden></div>
+
+            <div id="library-empty" class="card empty-state" hidden>
+                <h3>
+                    No books found
+                </h3>
+
+                <p id="library-empty-message" class="muted">
+                    There are no published books on this page.
+                </p>
+            </div>
+
+            <div id="book-grid" class="book-grid" aria-busy="false"></div>
+
+            <nav id="pagination" class="pagination" aria-label="Book pages" hidden>
+                <button id="previous-page" class="button button-secondary" type="button">
+                    Previous
+                </button>
+
+                <span id="page-indicator" class="page-indicator"></span>
+
+                <button id="next-page" class="button button-secondary" type="button">
+                    Next
+                </button>
+            </nav>
+        </section>
+    </main>
+
+    <div id="site-footer"></div>
+</body>
+
+</html>

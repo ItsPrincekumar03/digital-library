@@ -1,108 +1,410 @@
 <!doctype html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta name="description" content="Manage authors, categories, and chapters for a Digital Library book.">
+
     <title>Manage Book | Digital Library</title>
+
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/admin.css">
+
     <script type="module" src="js/router.js"></script>
 </head>
-<body data-page="admin-book" data-access="admin">
 
+<body data-page="admin-book" data-access="admin">
     <div id="site-header"></div>
 
-    <main class="container page-main">
-        <p class="back-link">
-            <a href="admin.html">← Back to Admin Dashboard</a>
-        </p>
+    <main class="container page-main admin-page">
+        <div class="admin-breadcrumb">
+            <a href="admin.html" class="button button-secondary button-small">
+                ← Back to admin
+            </a>
+        </div>
 
-        <section class="card">
-            <p class="eyebrow">Manage Content</p>
-            <h1 id="book-title-header">Loading...</h1>
-            <p class="muted" id="book-status">Status: Loading...</p>
+        <section class="admin-book-hero">
+            <div>
+                <p class="eyebrow">Book management</p>
 
-            <div id="admin-book-content" hidden>
-                <div class="tabs">
-                    <button class="button button-primary tab-button active" data-tab="relations">Relationships</button>
-                    <button class="button button-secondary tab-button" data-tab="chapters">Chapters</button>
+                <h1 id="book-title">
+                    Loading book…
+                </h1>
+
+                <p id="book-description" class="muted"></p>
+            </div>
+
+            <div id="book-status" class="admin-status admin-status-draft">
+                DRAFT
+            </div>
+        </section>
+
+        <section class="admin-info-card" aria-labelledby="book-information-heading">
+            <div class="admin-info-header">
+                <div>
+                    <p class="eyebrow">Overview</p>
+
+                    <h2 id="book-information-heading">
+                        Book information
+                    </h2>
+                </div>
+            </div>
+
+            <div class="admin-info-grid">
+                <div>
+                    <span class="admin-info-label">
+                        Publication date
+                    </span>
+
+                    <span id="book-publication-date" class="admin-info-value">
+                        —
+                    </span>
                 </div>
 
-                <!-- Relationships Tab -->
-                <div id="tab-relations" class="tab-content active">
-                    <div class="form-field">
-                        <h2>Authors</h2>
-                        <div id="current-authors" class="detail-list">Loading...</div>
-                        
-                        <form id="add-author-form" class="library-search-row" style="margin-top: 1rem;">
-                            <select id="author-select" required>
-                                <option value="">Select an author to add...</option>
-                            </select>
-                            <button type="submit" class="button button-primary">Add Author</button>
-                        </form>
-                    </div>
+                <div>
+                    <span class="admin-info-label">
+                        Cover path
+                    </span>
 
-                    <hr>
-
-                    <div class="form-field">
-                        <h2>Categories</h2>
-                        <div id="current-categories" class="detail-list">Loading...</div>
-
-                        <form id="add-category-form" class="library-search-row" style="margin-top: 1rem;">
-                            <select id="category-select" required>
-                                <option value="">Select a category to add...</option>
-                            </select>
-                            <button type="submit" class="button button-primary">Add Category</button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Chapters Tab -->
-                <div id="tab-chapters" class="tab-content" hidden>
-                    <div class="tab-header">
-                        <h2>Chapters</h2>
-                        <button class="button button-primary" id="btn-create-chapter">Create Chapter</button>
-                    </div>
-                    
-                    <ul id="chapters-list" class="chapter-list">
-                        <li class="muted">Loading chapters...</li>
-                    </ul>
-
-                    <div style="margin-top: 1rem;">
-                        <button class="button button-secondary" id="btn-save-order" hidden>Save Chapter Order</button>
-                    </div>
+                    <span id="book-cover-path" class="admin-info-value admin-break-word">
+                        —
+                    </span>
                 </div>
             </div>
         </section>
 
-        <!-- Modals -->
-        <dialog id="chapter-modal" class="modal">
-            <form id="chapter-form" method="dialog">
-                <h3 id="chapter-modal-title">Create Chapter</h3>
-                <input type="hidden" id="chapter-id">
-                <div class="form-field">
-                    <label for="chapter-title">Title</label>
-                    <input type="text" id="chapter-title" required>
+        <nav class="admin-tabs" aria-label="Book management sections">
+            <button class="admin-tab is-active" type="button" data-tab="authors" aria-selected="true">
+                Authors
+            </button>
+
+            <button class="admin-tab" type="button" data-tab="categories" aria-selected="false">
+                Categories
+            </button>
+
+            <button class="admin-tab" type="button" data-tab="chapters" aria-selected="false">
+                Chapters
+            </button>
+        </nav>
+
+        <!-- AUTHORS -->
+        <section id="tab-authors" class="admin-panel tab-content is-active" aria-labelledby="book-authors-heading">
+            <div class="admin-section-header">
+                <div>
+                    <p class="eyebrow">Relationships</p>
+
+                    <h2 id="book-authors-heading">
+                        Authors
+                    </h2>
+
+                    <p class="muted">
+                        Attach or remove authors from this book.
+                    </p>
                 </div>
-                <div class="form-field">
-                    <label for="chapter-number">Chapter Number</label>
-                    <input type="number" id="chapter-number" step="0.1" required>
+
+                <button id="add-author-button" class="button button-primary" type="button">
+                    + Add author
+                </button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Biography</th>
+                            <th scope="col" class="admin-actions-column">
+                                Action
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="book-authors-table-body"></tbody>
+                </table>
+            </div>
+
+            <div id="book-authors-empty" class="admin-empty" hidden>
+                <h3>No authors assigned</h3>
+
+                <p class="muted">
+                    Add an author to connect it with this book.
+                </p>
+
+                <button id="add-author-empty-button" class="button button-primary" type="button">
+                    + Add author
+                </button>
+            </div>
+        </section>
+
+        <!-- CATEGORIES -->
+        <section id="tab-categories" class="admin-panel tab-content" aria-labelledby="book-categories-heading" hidden>
+            <div class="admin-section-header">
+                <div>
+                    <p class="eyebrow">Relationships</p>
+
+                    <h2 id="book-categories-heading">
+                        Categories
+                    </h2>
+
+                    <p class="muted">
+                        Organize this book using library categories.
+                    </p>
                 </div>
-                <div class="form-field">
-                    <label for="chapter-content">Content</label>
-                    <textarea id="chapter-content" rows="10" required></textarea>
+
+                <button id="add-category-button" class="button button-primary" type="button">
+                    + Add category
+                </button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Description</th>
+                            <th scope="col" class="admin-actions-column">
+                                Action
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="book-categories-table-body"></tbody>
+                </table>
+            </div>
+
+            <div id="book-categories-empty" class="admin-empty" hidden>
+                <h3>No categories assigned</h3>
+
+                <p class="muted">
+                    Add a category to organize this book.
+                </p>
+
+                <button id="add-category-empty-button" class="button button-primary" type="button">
+                    + Add category
+                </button>
+            </div>
+        </section>
+
+        <!-- CHAPTERS -->
+        <section id="tab-chapters" class="admin-panel tab-content" aria-labelledby="book-chapters-heading" hidden>
+            <div class="admin-section-header">
+                <div>
+                    <p class="eyebrow">Book content</p>
+
+                    <h2 id="book-chapters-heading">
+                        Chapters
+                    </h2>
+
+                    <p class="muted">
+                        Create, edit, publish, archive, and reorder chapters.
+                    </p>
                 </div>
-                <div class="modal-actions">
-                    <button type="button" class="button button-secondary" id="btn-cancel-chapter">Cancel</button>
-                    <button type="submit" class="button button-primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+
+                <button id="create-chapter-button" class="button button-primary" type="button">
+                    + New chapter
+                </button>
+            </div>
+
+            <div class="admin-reorder-bar">
+                <p class="muted">
+                    Use the arrow buttons to arrange chapters, then save the order.
+                </p>
+
+                <button id="save-chapter-order" class="button button-secondary" type="button">
+                    Save order
+                </button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Order</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="admin-actions-column">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="chapters-table-body"></tbody>
+                </table>
+            </div>
+
+            <div id="chapters-empty" class="admin-empty" hidden>
+                <h3>No chapters yet</h3>
+
+                <p class="muted">
+                    Create your first chapter for this book.
+                </p>
+
+                <button id="create-chapter-empty-button" class="button button-primary" type="button">
+                    + Create chapter
+                </button>
+            </div>
+        </section>
     </main>
+
+    <!-- ADD AUTHOR -->
+    <dialog id="add-author-dialog" class="admin-dialog" aria-labelledby="add-author-dialog-title">
+        <form id="add-author-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Book relationship</p>
+
+                    <h2 id="add-author-dialog-title">
+                        Add author
+                    </h2>
+                </div>
+
+                <button id="add-author-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <div class="admin-form-field admin-form-field-full">
+                    <label for="author-select">
+                        Author
+                        <span aria-hidden="true">*</span>
+                    </label>
+
+                    <select id="author-select" required>
+                        <option value="">
+                            Choose an author
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="add-author-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="add-author-confirm" class="button button-primary" type="submit">
+                    Add author
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- ADD CATEGORY -->
+    <dialog id="add-category-dialog" class="admin-dialog" aria-labelledby="add-category-dialog-title">
+        <form id="add-category-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Book relationship</p>
+
+                    <h2 id="add-category-dialog-title">
+                        Add category
+                    </h2>
+                </div>
+
+                <button id="add-category-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <div class="admin-form-field admin-form-field-full">
+                    <label for="category-select">
+                        Category
+                        <span aria-hidden="true">*</span>
+                    </label>
+
+                    <select id="category-select" required>
+                        <option value="">
+                            Choose a category
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="add-category-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button id="add-category-confirm" class="button button-primary" type="submit">
+                    Add category
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- CHAPTER -->
+    <dialog id="chapter-dialog" class="admin-dialog admin-dialog-wide" aria-labelledby="chapter-dialog-title">
+        <form id="chapter-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Book content</p>
+
+                    <h2 id="chapter-dialog-title">
+                        Create chapter
+                    </h2>
+                </div>
+
+                <button id="chapter-dialog-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <input id="chapter-id" type="hidden">
+
+                <div class="admin-form-grid">
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="chapter-title">
+                            Title
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <input id="chapter-title" type="text" maxlength="255" required autocomplete="off"
+                            placeholder="Chapter title">
+                    </div>
+
+                    <div class="admin-form-field">
+                        <label for="chapter-number">
+                            Chapter number
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <input id="chapter-number" type="number" min="1" required placeholder="1">
+                    </div>
+
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="chapter-content">
+                            Content
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <textarea id="chapter-content" rows="14" required
+                            placeholder="Write the chapter content here"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="chapter-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button class="button button-primary" type="submit">
+                    Save chapter
+                </button>
+            </footer>
+        </form>
+    </dialog>
 
     <div id="site-footer"></div>
 </body>
+
 </html>

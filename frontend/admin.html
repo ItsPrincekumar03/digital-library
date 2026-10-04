@@ -5,6 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
+    <meta name="description" content="Administrator dashboard for managing books, authors, and categories.">
+
     <title>Administration | Digital Library</title>
 
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -18,124 +20,362 @@
 </head>
 
 <body data-page="admin" data-access="admin">
-
     <div id="site-header"></div>
 
-    <main class="container page-main">
+    <main class="container page-main admin-page">
+        <section class="admin-hero">
+            <div>
+                <p class="eyebrow">Administration</p>
 
-        <section class="card">
-            <p class="eyebrow">Administration</p>
-            <h1>Dashboard</h1>
-            
-            <div id="admin-content">
-                <div class="loading-state" id="admin-loading" role="status">
-                    Checking administrator access…
-                </div>
+                <h1>Admin Dashboard</h1>
 
-                <div id="admin-dashboard" hidden>
-                    <div class="tabs">
-                        <button class="button button-primary tab-button active" data-tab="books">Books</button>
-                        <button class="button button-secondary tab-button" data-tab="authors">Authors</button>
-                        <button class="button button-secondary tab-button" data-tab="categories">Categories</button>
-                    </div>
-
-                    <div id="tab-books" class="tab-content active">
-                        <div class="tab-header">
-                            <h2>Manage Books</h2>
-                            <button class="button button-primary" id="btn-create-book">Create New Book</button>
-                        </div>
-                        <div id="books-list" class="data-list">Loading books...</div>
-                    </div>
-
-                    <div id="tab-authors" class="tab-content" hidden>
-                        <div class="tab-header">
-                            <h2>Manage Authors</h2>
-                            <button class="button button-primary" id="btn-create-author">Create Author</button>
-                        </div>
-                        <div id="authors-list" class="data-list">Loading authors...</div>
-                    </div>
-
-                    <div id="tab-categories" class="tab-content" hidden>
-                        <div class="tab-header">
-                            <h2>Manage Categories</h2>
-                            <button class="button button-primary" id="btn-create-category">Create Category</button>
-                        </div>
-                        <div id="categories-list" class="data-list">Loading categories...</div>
-                    </div>
-                </div>
+                <p class="muted admin-hero-description">
+                    Manage the public library, authors, categories, and
+                    book content from one place.
+                </p>
             </div>
         </section>
 
-        <!-- Modals for simple entities -->
-        <dialog id="author-modal" class="modal">
-            <form id="author-form" method="dialog">
-                <h3 id="author-modal-title">Create Author</h3>
-                <input type="hidden" id="author-id">
-                <div class="form-field">
-                    <label for="author-name">Name</label>
-                    <input type="text" id="author-name" required>
-                </div>
-                <div class="form-field">
-                    <label for="author-bio">Biography</label>
-                    <textarea id="author-bio"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="button button-secondary" id="btn-cancel-author">Cancel</button>
-                    <button type="submit" class="button button-primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+        <section id="admin-dashboard" class="admin-dashboard" aria-labelledby="admin-dashboard-heading">
+            <h2 id="admin-dashboard-heading" class="visually-hidden">
+                Administration controls
+            </h2>
 
-        <dialog id="category-modal" class="modal">
-            <form id="category-form" method="dialog">
-                <h3 id="category-modal-title">Create Category</h3>
-                <input type="hidden" id="category-id">
-                <div class="form-field">
-                    <label for="category-name">Name</label>
-                    <input type="text" id="category-name" required>
-                </div>
-                <div class="form-field">
-                    <label for="category-description">Description</label>
-                    <textarea id="category-description"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="button button-secondary" id="btn-cancel-category">Cancel</button>
-                    <button type="submit" class="button button-primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+            <nav class="admin-tabs" aria-label="Administration sections">
+                <button class="admin-tab is-active" type="button" data-tab="books" aria-selected="true">
+                    Books
+                </button>
 
-        <dialog id="book-modal" class="modal">
-            <form id="book-form" method="dialog">
-                <h3 id="book-modal-title">Create Book</h3>
-                <input type="hidden" id="book-id">
-                <div class="form-field">
-                    <label for="book-title">Title</label>
-                    <input type="text" id="book-title" required>
-                </div>
-                <div class="form-field">
-                    <label for="book-description">Description</label>
-                    <textarea id="book-description"></textarea>
-                </div>
-                <div class="form-field">
-                    <label for="book-cover">Cover Path</label>
-                    <input type="text" id="book-cover">
-                </div>
-                <div class="form-field">
-                    <label for="book-date">Publication Date</label>
-                    <input type="date" id="book-date">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="button button-secondary" id="btn-cancel-book">Cancel</button>
-                    <button type="submit" class="button button-primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+                <button class="admin-tab" type="button" data-tab="authors" aria-selected="false">
+                    Authors
+                </button>
 
+                <button class="admin-tab" type="button" data-tab="categories" aria-selected="false">
+                    Categories
+                </button>
+            </nav>
+
+            <!-- BOOKS -->
+            <section id="tab-books" class="admin-panel tab-content is-active" aria-labelledby="books-heading">
+                <div class="admin-section-header">
+                    <div>
+                        <p class="eyebrow">Library content</p>
+                        <h2 id="books-heading">Books</h2>
+                        <p class="muted">
+                            Create, edit, publish, archive, and manage book content.
+                        </p>
+                    </div>
+
+                    <button id="create-book-button" class="button button-primary" type="button">
+                        + New book
+                    </button>
+                </div>
+
+                <div id="books-message" class="form-message" role="status" aria-live="polite" hidden></div>
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Title</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Publication date</th>
+                                <th scope="col" class="admin-actions-column">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="books-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div id="books-empty" class="admin-empty" hidden>
+                    <h3>No books found</h3>
+                    <p class="muted">
+                        Create a book to begin building the public library.
+                    </p>
+
+                    <button id="create-book-empty-button" class="button button-primary" type="button">
+                        + Create book
+                    </button>
+                </div>
+            </section>
+
+            <!-- AUTHORS -->
+            <section id="tab-authors" class="admin-panel tab-content" aria-labelledby="authors-heading" hidden>
+                <div class="admin-section-header">
+                    <div>
+                        <p class="eyebrow">Library metadata</p>
+                        <h2 id="authors-heading">Authors</h2>
+                        <p class="muted">
+                            Manage the authors used by public books.
+                        </p>
+                    </div>
+
+                    <button id="create-author-button" class="button button-primary" type="button">
+                        + New author
+                    </button>
+                </div>
+
+                <div id="authors-message" class="form-message" role="status" aria-live="polite" hidden></div>
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="admin-actions-column">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="authors-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div id="authors-empty" class="admin-empty" hidden>
+                    <h3>No authors found</h3>
+                    <p class="muted">
+                        Create an author to use it in book relationships.
+                    </p>
+
+                    <button id="create-author-empty-button" class="button button-primary" type="button">
+                        + Create author
+                    </button>
+                </div>
+            </section>
+
+            <!-- CATEGORIES -->
+            <section id="tab-categories" class="admin-panel tab-content" aria-labelledby="categories-heading" hidden>
+                <div class="admin-section-header">
+                    <div>
+                        <p class="eyebrow">Library metadata</p>
+                        <h2 id="categories-heading">Categories</h2>
+                        <p class="muted">
+                            Organize books using administrator-controlled categories.
+                        </p>
+                    </div>
+
+                    <button id="create-category-button" class="button button-primary" type="button">
+                        + New category
+                    </button>
+                </div>
+
+                <div id="categories-message" class="form-message" role="status" aria-live="polite" hidden></div>
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="admin-actions-column">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="categories-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div id="categories-empty" class="admin-empty" hidden>
+                    <h3>No categories found</h3>
+                    <p class="muted">
+                        Create a category to organize the library.
+                    </p>
+
+                    <button id="create-category-empty-button" class="button button-primary" type="button">
+                        + Create category
+                    </button>
+                </div>
+            </section>
+        </section>
     </main>
 
-    <div id="site-footer"></div>
+    <!-- BOOK MODAL -->
+    <dialog id="book-dialog" class="admin-dialog" aria-labelledby="book-dialog-title">
+        <form id="book-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Book management</p>
 
+                    <h2 id="book-dialog-title">
+                        Create book
+                    </h2>
+                </div>
+
+                <button id="book-dialog-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <input id="book-id" type="hidden">
+
+                <div class="admin-form-grid">
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="book-title">
+                            Title
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <input id="book-title" name="title" type="text" maxlength="255" required autocomplete="off"
+                            placeholder="Enter book title">
+                    </div>
+
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="book-description">
+                            Description
+                        </label>
+
+                        <textarea id="book-description" name="description" maxlength="5000" rows="6"
+                            placeholder="Enter a short description"></textarea>
+                    </div>
+
+                    <div class="admin-form-field">
+                        <label for="book-cover-path">
+                            Cover path
+                        </label>
+
+                        <input id="book-cover-path" name="coverPath" type="text" maxlength="500" autocomplete="off"
+                            placeholder="/uploads/covers/book.jpg">
+                    </div>
+
+                    <div class="admin-form-field">
+                        <label for="book-publication-date">
+                            Publication date
+                        </label>
+
+                        <input id="book-publication-date" name="publicationDate" type="date">
+                    </div>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="book-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button class="button button-primary" type="submit">
+                    Save book
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- AUTHOR MODAL -->
+    <dialog id="author-dialog" class="admin-dialog" aria-labelledby="author-dialog-title">
+        <form id="author-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Author management</p>
+
+                    <h2 id="author-dialog-title">
+                        Create author
+                    </h2>
+                </div>
+
+                <button id="author-dialog-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <input id="author-id" type="hidden">
+
+                <div class="admin-form-grid">
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="author-name">
+                            Name
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <input id="author-name" name="name" type="text" maxlength="255" required autocomplete="off"
+                            placeholder="Enter author name">
+                    </div>
+
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="author-biography">
+                            Biography
+                        </label>
+
+                        <textarea id="author-biography" name="biography" maxlength="5000" rows="7"
+                            placeholder="Enter author biography"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="author-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button class="button button-primary" type="submit">
+                    Save author
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- CATEGORY MODAL -->
+    <dialog id="category-dialog" class="admin-dialog" aria-labelledby="category-dialog-title">
+        <form id="category-form" method="dialog" class="admin-dialog-shell">
+            <header class="admin-dialog-header">
+                <div>
+                    <p class="eyebrow">Category management</p>
+
+                    <h2 id="category-dialog-title">
+                        Create category
+                    </h2>
+                </div>
+
+                <button id="category-dialog-close" class="admin-dialog-close" type="button" aria-label="Close dialog">
+                    ×
+                </button>
+            </header>
+
+            <div class="admin-dialog-body">
+                <input id="category-id" type="hidden">
+
+                <div class="admin-form-grid">
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="category-name">
+                            Name
+                            <span aria-hidden="true">*</span>
+                        </label>
+
+                        <input id="category-name" name="name" type="text" maxlength="255" required autocomplete="off"
+                            placeholder="Enter category name">
+                    </div>
+
+                    <div class="admin-form-field admin-form-field-full">
+                        <label for="category-description">
+                            Description
+                        </label>
+
+                        <textarea id="category-description" name="description" maxlength="5000" rows="6"
+                            placeholder="Enter category description"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="admin-dialog-footer">
+                <button id="category-cancel" class="button button-secondary" type="button">
+                    Cancel
+                </button>
+
+                <button class="button button-primary" type="submit">
+                    Save category
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <div id="site-footer"></div>
 </body>
 
 </html>

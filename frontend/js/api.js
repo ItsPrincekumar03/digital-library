@@ -1,7 +1,11 @@
 import { API_BASE_URL } from "./config.js";
 
 export class ApiError extends Error {
-    constructor(message, status = 0, details = null) {
+    constructor(
+        message,
+        status = 0,
+        details = null
+    ) {
         super(message);
 
         this.name = "ApiError";
@@ -10,12 +14,21 @@ export class ApiError extends Error {
     }
 }
 
-function getErrorMessage(payload, fallback) {
-    if (typeof payload === "string" && payload.trim()) {
+function getErrorMessage(
+    payload,
+    fallback
+) {
+    if (
+        typeof payload === "string" &&
+        payload.trim()
+    ) {
         return payload;
     }
 
-    if (payload && typeof payload === "object") {
+    if (
+        payload &&
+        typeof payload === "object"
+    ) {
         if (
             typeof payload.message === "string" &&
             payload.message.trim()
@@ -31,13 +44,61 @@ function getErrorMessage(payload, fallback) {
         }
 
         if (
+            Array.isArray(payload.errors) &&
+            payload.errors.length
+        ) {
+            const firstError =
+                payload.errors[0];
+
+            if (
+                typeof firstError === "string"
+            ) {
+                return firstError;
+            }
+
+            if (
+                firstError &&
+                typeof firstError.message === "string" &&
+                firstError.message.trim()
+            ) {
+                return firstError.message;
+            }
+
+            if (
+                firstError &&
+                typeof firstError.msg === "string" &&
+                firstError.msg.trim()
+            ) {
+                return firstError.msg;
+            }
+        }
+
+        if (
             payload.errors &&
             typeof payload.errors === "object"
         ) {
-            const firstError = Object.values(payload.errors).flat()[0];
+            const values =
+                Object.values(payload.errors);
 
-            if (typeof firstError === "string") {
+            const flattened =
+                values.flat();
+
+            const firstError =
+                flattened[0];
+
+            if (
+                typeof firstError === "string" &&
+                firstError.trim()
+            ) {
                 return firstError;
+            }
+
+            if (
+                firstError &&
+                typeof firstError.message === "string" &&
+                firstError.message.trim()
+            ) {
+                return firstError.message;
             }
         }
     }
@@ -45,15 +106,23 @@ function getErrorMessage(payload, fallback) {
     return fallback;
 }
 
-async function readResponse(response) {
+async function readResponse(
+    response
+) {
     if (response.status === 204) {
         return null;
     }
 
     const contentType =
-        response.headers.get("content-type") || "";
+        response.headers.get(
+            "content-type"
+        ) || "";
 
-    if (contentType.includes("application/json")) {
+    if (
+        contentType
+            .toLowerCase()
+            .includes("application/json")
+    ) {
         try {
             return await response.json();
         } catch {
@@ -61,26 +130,40 @@ async function readResponse(response) {
         }
     }
 
-    const text = await response.text().catch(() => "");
+    const text =
+        await response
+            .text()
+            .catch(() => "");
 
     return text || null;
 }
 
 export const api = {
-
-    async request(path, options = {}) {
-        const headers = new Headers(
-            options.headers || {}
-        );
+    async request(
+        path,
+        options = {}
+    ) {
+        const headers =
+            new Headers(
+                options.headers || {}
+            );
 
         const requestOptions = {
             ...options,
             headers,
 
-            // Browser handles HTTP-only authentication cookie.
+            // HTTP-only authentication cookie
+            // is handled automatically by the browser.
             credentials: "include"
         };
 
+        /*
+         * Automatically convert normal JavaScript
+         * objects into JSON.
+         *
+         * FormData is intentionally left untouched so
+         * upload functionality can use it later.
+         */
         if (
             options.body !== undefined &&
             options.body !== null &&
@@ -93,16 +176,19 @@ export const api = {
             );
 
             requestOptions.body =
-                JSON.stringify(options.body);
+                JSON.stringify(
+                    options.body
+                );
         }
 
         let response;
 
         try {
-            response = await fetch(
-                `${API_BASE_URL}${path}`,
-                requestOptions
-            );
+            response =
+                await fetch(
+                    `${API_BASE_URL}${path}`,
+                    requestOptions
+                );
         } catch (error) {
             throw new ApiError(
                 "Could not connect to the server. Check that the backend is running.",
@@ -112,7 +198,9 @@ export const api = {
         }
 
         const payload =
-            await readResponse(response);
+            await readResponse(
+                response
+            );
 
         if (!response.ok) {
             throw new ApiError(
@@ -129,16 +217,61 @@ export const api = {
     },
 
     get(path) {
-        return this.request(path, {
-            method: "GET"
-        });
+        return this.request(
+            path,
+            {
+                method: "GET"
+            }
+        );
     },
 
-    post(path, body) {
-        return this.request(path, {
-            method: "POST",
-            body
-        });
-    }
+    post(
+        path,
+        body
+    ) {
+        return this.request(
+            path,
+            {
+                method: "POST",
+                body
+            }
+        );
+    },
 
+    put(
+        path,
+        body
+    ) {
+        return this.request(
+            path,
+            {
+                method: "PUT",
+                body
+            }
+        );
+    },
+
+    patch(
+        path,
+        body
+    ) {
+        return this.request(
+            path,
+            {
+                method: "PATCH",
+                body
+            }
+        );
+    },
+
+    delete(
+        path
+    ) {
+        return this.request(
+            path,
+            {
+                method: "DELETE"
+            }
+        );
+    }
 };

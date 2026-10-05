@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Upload and manage your private PDFs in the Digital Library.">
+
+    <title>Private Library | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/private-library.css">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="private-library" data-access="auth">
+    <div id="site-header"></div>
+
+    <main class="container page-main private-library-page">
+        <header class="private-library-heading">
+            <p class="eyebrow">Personal collection</p>
+
+            <h1>Private Library</h1>
+
+            <p class="muted">
+                Upload and manage PDFs that belong only to your account.
+            </p>
+        </header>
+
+        <section class="private-library-upload card" aria-labelledby="upload-heading">
+            <div class="private-section-header">
+                <div>
+                    <h2 id="upload-heading">Upload PDF</h2>
+
+                    <p class="muted">
+                        Only PDF files are accepted. Your uploads are not added to the public library.
+                    </p>
+                </div>
+            </div>
+
+            <form id="private-upload-form" enctype="multipart/form-data">
+                <div class="private-form-grid">
+                    <div class="form-field">
+                        <label for="private-title">Title</label>
+                        <input id="private-title" name="title" type="text" maxlength="255" autocomplete="off"
+                            placeholder="Optional title">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="private-pdf">PDF file</label>
+                        <input id="private-pdf" name="pdf" type="file" accept="application/pdf,.pdf" required>
+                    </div>
+
+                    <div class="form-field private-description-field">
+                        <label for="private-description">Description</label>
+                        <input id="private-description" name="description" type="text" maxlength="1000"
+                            autocomplete="off" placeholder="Optional note">
+                    </div>
+                </div>
+
+                <div class="button-row">
+                    <button id="upload-button" class="button button-primary" type="submit">
+                        Upload PDF
+                    </button>
+                </div>
+
+                <p id="upload-message" class="form-message" role="status" aria-live="polite" hidden></p>
+            </form>
+        </section>
+
+        <section class="private-library-results" aria-labelledby="private-files-heading">
+            <div class="results-heading-row">
+                <h2 id="private-files-heading">My PDFs</h2>
+
+                <p id="private-results-summary" class="muted" aria-live="polite"></p>
+            </div>
+
+            <div id="private-loading" class="loading-state" role="status" aria-live="polite">
+                Loading your PDFs...
+            </div>
+
+            <div id="private-error" class="form-message error-message" role="alert" hidden></div>
+
+            <div id="private-empty" class="card empty-state" hidden>
+                <h3>No private PDFs yet</h3>
+
+                <p class="muted">
+                    Upload a PDF to start building your personal library.
+                </p>
+            </div>
+
+            <div id="private-file-list" class="private-file-list" aria-busy="false"></div>
+        </section>
+    </main>
+
+    <div id="site-footer"></div>
+</body>
+
+</html>

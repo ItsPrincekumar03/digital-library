@@ -10,7 +10,8 @@ function getSafeNextPage() {
     const allowed = new Set([
         "index.html",
         "profile.html",
-        "admin.html"
+        "admin.html",
+        "private-library.html"
     ]);
 
     if (

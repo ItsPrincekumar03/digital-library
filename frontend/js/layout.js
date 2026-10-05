@@ -79,7 +79,8 @@ export function renderLayout() {
 
         if (user) {
             links.append(
-                makeLink("My profile", "profile.html")
+                makeLink("My profile", "profile.html"),
+                makeLink("Private Library", "private-library.html")
             );
 
             if (user.role === "ADMIN") {

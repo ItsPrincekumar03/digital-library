@@ -24,7 +24,8 @@ function getSafeReturnUrl() {
             "admin.html",
             "admin-book.html",
             "library.html",
-            "book.html"
+            "book.html",
+            "private-library.html"
         ];
 
         const page =
@@ -110,6 +111,7 @@ async function boot() {
         login: "./pages/login.js",
         register: "./pages/register.js",
         profile: "./pages/profile.js",
+        "private-library": "./pages/private-library.js",
         admin: "./pages/admin.js",
         "admin-book": "./pages/admin-book.js",
         library: "./pages/library.js",

@@ -13,6 +13,7 @@ const authorRoutes = require('./routes/author.routes');
 const categoryRoutes = require('./routes/category.routes');
 const bookRoutes = require('./routes/book.routes');
 const chapterRoutes = require('./routes/chapter.routes');
+const privateLibraryRoutes = require('./routes/privateLibrary.routes');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/authors', authorRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/chapters', chapterRoutes);
+app.use('/api/private-library', privateLibraryRoutes);
 
 // -----------------------------
 // 404 Handler

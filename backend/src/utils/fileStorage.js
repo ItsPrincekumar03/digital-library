@@ -1,7 +1,7 @@
 ﻿const fs = require('fs/promises');
 const path = require('path');
 
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
+const UPLOADS_DIR = path.resolve(__dirname, '..', '..', '..', 'uploads');
 
 const PUBLIC_UPLOADS = path.join(UPLOADS_DIR, 'public');
 const PRIVATE_UPLOADS = path.join(UPLOADS_DIR, 'private');
@@ -35,6 +35,47 @@ function getPublicImagesDirectory() { return PUBLIC_IMAGES; }
 function getPrivateProcessedDirectory() { return PRIVATE_PROCESSED; }
 function getPrivateImagesDirectory() { return PRIVATE_IMAGES; }
 
+function resolvePrivatePdfPath(storedFileName) {
+    const safeFileName = path.basename(String(storedFileName || ''));
+    const resolvedPath = path.resolve(PRIVATE_UPLOADS, safeFileName);
+    if (!resolvedPath.startsWith(PRIVATE_UPLOADS + path.sep)) {
+        const err = new Error('Invalid private file path.');
+        err.status = 400;
+        throw err;
+    }
+    return resolvedPath;
+}
+
+function resolvePublicPdfPath(storedFileName) {
+    const safeFileName = path.basename(String(storedFileName || ''));
+    const resolvedPath = path.resolve(PUBLIC_UPLOADS, safeFileName);
+    if (!resolvedPath.startsWith(PUBLIC_UPLOADS + path.sep)) {
+        const err = new Error('Invalid public file path.');
+        err.status = 400;
+        throw err;
+    }
+    return resolvedPath;
+}
+
+async function fileExists(filePath) {
+    try {
+        await fs.access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function deleteFileIfExists(filePath) {
+    try {
+        await fs.unlink(filePath);
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
+    }
+}
+
 module.exports = {
     ensurePrivateUploadDirectory,
     getPrivateUploadDirectory,
@@ -43,5 +84,9 @@ module.exports = {
     getPublicProcessedDirectory,
     getPublicImagesDirectory,
     getPrivateProcessedDirectory,
-    getPrivateImagesDirectory
+    getPrivateImagesDirectory,
+    resolvePrivatePdfPath,
+    resolvePublicPdfPath,
+    fileExists,
+    deleteFileIfExists
 };

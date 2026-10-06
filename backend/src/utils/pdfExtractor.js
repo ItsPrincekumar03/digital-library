@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { createCanvas, ImageData } = require('canvas');
 
@@ -75,7 +75,7 @@ async function extractPdf(pdfPath, outputDir, filePrefix) {
             for (let i = 0; i < ops.fnArray.length; i++) {
                 if (ops.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
                     const imgName = ops.argsArray[i][0];
-                    const imgObj = await new Promise(resolve => page.objs.get(imgName, resolve));
+                    const imgObj = await page.objs.get(imgName);
                     
                     if (imgObj && imgObj.data && imgObj.width && imgObj.height) {
                         try {

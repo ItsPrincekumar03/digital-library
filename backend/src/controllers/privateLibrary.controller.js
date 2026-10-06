@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs/promises');
 const { getPrivateImagesDirectory } = require('../utils/fileStorage');
 
-async function uploadFile(req, res, next) {
+async function upload(req, res, next) {
     try {
         const privateFile = await privateLibraryService.uploadPrivatePdf(
             req.user,
@@ -14,21 +14,21 @@ async function uploadFile(req, res, next) {
     } catch (err) { next(err); }
 }
 
-async function listFiles(req, res, next) {
+async function list(req, res, next) {
     try {
         const privateFiles = await privateLibraryService.listPrivatePdfs(req.user);
         res.status(200).json({ success: true, data: { privateFiles } });
     } catch (err) { next(err); }
 }
 
-async function getFile(req, res, next) {
+async function getById(req, res, next) {
     try {
         const privateFile = await privateLibraryService.getPrivatePdf(req.user, req.params.id);
         res.status(200).json({ success: true, data: { privateFile } });
     } catch (err) { next(err); }
 }
 
-async function streamFile(req, res, next) {
+async function openFile(req, res, next) {
     try {
         const { filePath, mimeType, fileName } = await privateLibraryService.getPrivatePdfForStreaming(req.user, req.params.id);
         res.setHeader('Content-Type', mimeType);
@@ -46,14 +46,12 @@ async function getDocument(req, res, next) {
 
 async function getExtractedImage(req, res, next) {
     try {
-        // Simple security: check if private file exists and belongs to user by matching the prefix
-        // Prefix is private_{id}_img_...
         const { imageName } = req.params;
         const match = imageName.match(/^private_(\d+)_/);
         if (!match) return res.status(403).json({ success: false });
         
         const privateFileId = parseInt(match[1], 10);
-        await privateLibraryService.getPrivatePdf(req.user, privateFileId); // will throw 404/403 if unowned
+        await privateLibraryService.getPrivatePdf(req.user, privateFileId); 
 
         const safeFileName = path.basename(imageName);
         const filePath = path.join(getPrivateImagesDirectory(), safeFileName);
@@ -68,7 +66,7 @@ async function getExtractedImage(req, res, next) {
     } catch (err) { next(err); }
 }
 
-async function deleteFile(req, res, next) {
+async function remove(req, res, next) {
     try {
         await privateLibraryService.deletePrivatePdf(req.user, req.params.id);
         res.status(200).json({ success: true, message: 'PDF deleted.' });
@@ -76,5 +74,5 @@ async function deleteFile(req, res, next) {
 }
 
 module.exports = {
-    uploadFile, listFiles, getFile, streamFile, deleteFile, getDocument, getExtractedImage
+    upload, list, getById, openFile, remove, getDocument, getExtractedImage
 };

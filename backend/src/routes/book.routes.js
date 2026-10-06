@@ -2,7 +2,7 @@
 const router = express.Router();
 const bookController = require('../controllers/book.controller');
 const getExtractedImage = require('../controllers/bookImage.controller');
-const { requireAuth } = require('../middleware/auth.middleware');
+const requireAuth = require('../middleware/auth.middleware');
 const { handlePublicPdfUpload } = require('../middleware/upload.middleware');
 
 router.get('/images/:imageName', getExtractedImage);

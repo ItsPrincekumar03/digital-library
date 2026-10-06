@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 
 const privateLibraryController = require('../controllers/privateLibrary.controller');
@@ -21,6 +21,8 @@ router.post(
     privateLibraryController.upload
 );
 
+router.get('/images/:imageName', requireAuth, privateLibraryController.getExtractedImage);
+
 router.get(
     '/:id',
     requireAuth,
@@ -35,6 +37,14 @@ router.get(
     idParamRule,
     handleValidation,
     privateLibraryController.openFile
+);
+
+router.get(
+    '/:id/document',
+    requireAuth,
+    idParamRule,
+    handleValidation,
+    privateLibraryController.getDocument
 );
 
 router.delete(

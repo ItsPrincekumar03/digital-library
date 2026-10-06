@@ -1,4 +1,4 @@
-const fs = require('fs/promises');
+﻿const fs = require('fs/promises');
 const path = require('path');
 
 const privateUploadDirectory = path.resolve(
@@ -8,6 +8,15 @@ const privateUploadDirectory = path.resolve(
     '..',
     'uploads',
     'private'
+);
+
+const publicUploadDirectory = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'uploads',
+    'public'
 );
 
 function getPrivateUploadDirectory() {
@@ -24,6 +33,27 @@ function resolvePrivatePdfPath(storedFileName) {
 
     if (!resolvedPath.startsWith(privateUploadDirectory + path.sep)) {
         const err = new Error('Invalid private file path.');
+        err.status = 400;
+        throw err;
+    }
+
+    return resolvedPath;
+}
+
+function getPublicUploadDirectory() {
+    return publicUploadDirectory;
+}
+
+async function ensurePublicUploadDirectory() {
+    await fs.mkdir(publicUploadDirectory, { recursive: true });
+}
+
+function resolvePublicPdfPath(storedFileName) {
+    const safeFileName = path.basename(String(storedFileName || ''));
+    const resolvedPath = path.resolve(publicUploadDirectory, safeFileName);
+
+    if (!resolvedPath.startsWith(publicUploadDirectory + path.sep)) {
+        const err = new Error('Invalid public file path.');
         err.status = 400;
         throw err;
     }
@@ -54,6 +84,9 @@ module.exports = {
     getPrivateUploadDirectory,
     ensurePrivateUploadDirectory,
     resolvePrivatePdfPath,
+    getPublicUploadDirectory,
+    ensurePublicUploadDirectory,
+    resolvePublicPdfPath,
     fileExists,
     deleteFileIfExists
 };

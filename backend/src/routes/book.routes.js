@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 
 const bookController = require('../controllers/book.controller');
@@ -6,6 +6,7 @@ const bookRelationsController = require('../controllers/bookRelations.controller
 const chapterController = require('../controllers/chapter.controller');
 const requireAuth = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
+const { handlePublicPdfUpload } = require('../middleware/upload.middleware');
 const {
   createBookRules, updateBookRules, idParamRule, bookIdParamRule, handleValidation,
 } = require('../validators/book.validator');
@@ -16,9 +17,16 @@ const {
   createChapterRules, updateChapterRules, reorderChaptersRules, handleValidation: handleChapterValidation,
 } = require('../validators/chapter.validator');
 
+// New M13 endpoint
+router.post('/import-pdf', requireAuth, requireRole('ADMIN'), handlePublicPdfUpload, bookController.importPdf);
+
 router.post('/', requireAuth, requireRole('ADMIN'), createBookRules, handleValidation, bookController.create);
 router.get('/', requireAuth, bookController.getAll);
 router.get('/:id', requireAuth, idParamRule, handleValidation, bookController.getById);
+
+// New M13 endpoint to read public PDF
+router.get('/:id/pdf', requireAuth, idParamRule, handleValidation, bookController.readPdf);
+
 router.put('/:id', requireAuth, requireRole('ADMIN'), idParamRule, updateBookRules, handleValidation, bookController.update);
 router.patch('/:id/publish', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.publish);
 router.patch('/:id/archive', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.archive);

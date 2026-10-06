@@ -25,7 +25,8 @@ function getSafeReturnUrl() {
             "admin-book.html",
             "library.html",
             "book.html",
-            "private-library.html"
+            "private-library.html",
+            "reader.html"
         ];
 
         const page =
@@ -115,7 +116,8 @@ async function boot() {
         admin: "./pages/admin.js",
         "admin-book": "./pages/admin-book.js",
         library: "./pages/library.js",
-        book: "./pages/book.js"
+        book: "./pages/book.js",
+        reader: "./pages/reader.js"
     };
 
     if (pageModules[page]) {

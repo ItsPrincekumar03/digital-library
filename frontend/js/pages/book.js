@@ -132,7 +132,7 @@ function renderBook(book, authors, categories, chapters) {
         ? book.title
         : "Untitled book";
 
-    document.title = `${title} | Digital Library`;
+    document.title = ${title} | Digital Library;
     element("book-title").textContent = title;
 
     const description = element("book-description");
@@ -143,12 +143,24 @@ function renderBook(book, authors, categories, chapters) {
         description.hidden = true;
     }
 
+    const pdfAction = element("pdf-action");
+    const readBtn = element("btn-read-pdf");
+    if (pdfAction && readBtn) {
+        if (book.pdf_path) {
+            readBtn.href = 
+eader.html?bookId=;
+            pdfAction.hidden = false;
+        } else {
+            pdfAction.hidden = true;
+        }
+    }
+
     const publication = element("book-publication");
     if (book.publication_date) {
         const parsedDate = new Date(book.publication_date);
         publication.textContent = Number.isNaN(parsedDate.getTime())
-            ? `Publication date: ${String(book.publication_date)}`
-            : `Publication date: ${parsedDate.toLocaleDateString()}`;
+            ? Publication date: 
+            : Publication date: ;
         publication.hidden = false;
     } else {
         publication.hidden = true;

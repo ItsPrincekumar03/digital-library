@@ -75,7 +75,7 @@ function openPrivatePdf(privateFileId) {
         API_BASE_URL
     );
 
-    window.open(url.href, "_blank", "noopener");
+    window.location.href = "reader.html?privatePdfId=" + encodeURIComponent(String(privateFileId));
 }
 
 async function deletePrivatePdf(privateFileId, title, button) {
@@ -159,7 +159,7 @@ function createPrivateFileCard(privateFile) {
     const openButton = document.createElement("button");
     openButton.type = "button";
     openButton.className = "button button-primary";
-    openButton.textContent = "Open";
+    openButton.textContent = "Read";
     openButton.addEventListener("click", () => {
         openPrivatePdf(privateFile.private_file_id);
     });

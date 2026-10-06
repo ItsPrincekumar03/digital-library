@@ -1,4 +1,4 @@
-import { api } from "../api.js";
+﻿import { api } from "../api.js";
 import { API_BASE_URL } from "../config.js";
 import { auth } from "../auth.js";
 
@@ -132,7 +132,7 @@ function renderBook(book, authors, categories, chapters) {
         ? book.title
         : "Untitled book";
 
-    document.title = ${title} | Digital Library;
+    document.title = `${title} | Digital Library`;
     element("book-title").textContent = title;
 
     const description = element("book-description");
@@ -147,8 +147,7 @@ function renderBook(book, authors, categories, chapters) {
     const readBtn = element("btn-read-pdf");
     if (pdfAction && readBtn) {
         if (book.pdf_path) {
-            readBtn.href = 
-eader.html?bookId=;
+            readBtn.href = `reader.html?bookId=${book.book_id}`;
             pdfAction.hidden = false;
         } else {
             pdfAction.hidden = true;
@@ -159,8 +158,8 @@ eader.html?bookId=;
     if (book.publication_date) {
         const parsedDate = new Date(book.publication_date);
         publication.textContent = Number.isNaN(parsedDate.getTime())
-            ? Publication date: 
-            : Publication date: ;
+            ? `Publication date: ${String(book.publication_date)}`
+            : `Publication date: ${parsedDate.toLocaleDateString()}`;
         publication.hidden = false;
     } else {
         publication.hidden = true;

@@ -34,15 +34,15 @@ function loadPrefs() {
 
 function applyPrefs() {
     document.body.classList.remove('reader-theme-light', 'reader-theme-dark', 'reader-theme-sepia');
-    document.body.classList.add(\eader-theme-\\);
+    document.body.classList.add(`reader-theme-${state.prefs.theme}`);
 
     const content = el('reader-content');
     if(content) {
         content.classList.remove('reader-width-narrow', 'reader-width-normal', 'reader-width-wide');
-        content.classList.add(\eader-width-\\);
+        content.classList.add(`reader-width-${state.prefs.width}`);
 
         content.classList.remove('reader-spacing-compact', 'reader-spacing-normal', 'reader-spacing-relaxed');
-        content.classList.add(\eader-spacing-\\);
+        content.classList.add(`reader-spacing-${state.prefs.spacing}`);
     }
 
     document.querySelectorAll('.theme-option-btn').forEach(b => b.classList.toggle('is-active', b.dataset.theme === state.prefs.theme));
@@ -51,7 +51,7 @@ function applyPrefs() {
 }
 
 function updateZoomDisplay() {
-    el('zoom-level-display').textContent = \\%\;
+    el('zoom-level-display').textContent = `${Math.round(state.zoomLevel * 100)}%`;
 }
 
 function bindEvents() {
@@ -99,7 +99,7 @@ function bindEvents() {
 function updateProgress() {
     const total = document.documentElement.scrollHeight - window.innerHeight;
     const pct = total > 0 ? (window.scrollY / total) * 100 : 0;
-    el('reader-progress-bar').style.width = \\%\;
+    el('reader-progress-bar').style.width = `${pct}%`;
 }
 
 const observer = new IntersectionObserver((entries) => {
@@ -124,7 +124,7 @@ function setupViewer() {
         
         const placeholder = document.createElement('div');
         placeholder.className = 'pdf-page-placeholder';
-        placeholder.textContent = \Loading page \...\;
+        placeholder.textContent = `Loading page ${i}...`;
         
         container.appendChild(placeholder);
         viewer.appendChild(container);
@@ -150,7 +150,6 @@ async function renderPage(pageNum) {
         
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        // Keep CSS width 100% to fill container, let high-res canvas handle sharpness
         canvas.style.width = '100%'; 
         
         const renderContext = { canvasContext: ctx, viewport: viewport };
@@ -168,9 +167,8 @@ function reRenderAllVisible() {
     state.renderedPages.clear();
     state.pageContainers.forEach(container => {
         if(container.firstChild && container.firstChild.tagName === 'CANVAS') {
-            container.innerHTML = \<div class="pdf-page-placeholder">Reloading...</div>\;
+            container.innerHTML = `<div class="pdf-page-placeholder">Reloading...</div>`;
         }
-        // Observer will re-trigger intersections naturally if in view
     });
 }
 
@@ -196,19 +194,18 @@ export async function init() {
     if (privatePdfId) {
         state.isPrivate = true;
         state.pdfId = privatePdfId;
-        pdfUrl = \\/private-library/\/file\;
+        pdfUrl = `${API_BASE_URL}/private-library/${privatePdfId}/file`;
         el('reader-back-link').href = 'private-library.html';
     } else if (bookId) {
         state.isPrivate = false;
         state.pdfId = bookId;
-        pdfUrl = \\/books/\/pdf\;
-        el('reader-back-link').href = \ook.html?id=\\;
+        pdfUrl = `${API_BASE_URL}/books/${bookId}/pdf`;
+        el('reader-back-link').href = `book.html?id=${bookId}`;
     } else {
         return showError("No PDF ID provided.");
     }
 
     try {
-        // We use withCredentials to pass auth cookies to the backend
         const loadingTask = pdfjsLib.getDocument({
             url: pdfUrl,
             withCredentials: true
@@ -217,23 +214,22 @@ export async function init() {
         state.pdfDoc = await loadingTask.promise;
         state.pagesCount = state.pdfDoc.numPages;
         
-        el('reader-page-indicator').textContent = \\ Pages\;
+        el('reader-page-indicator').textContent = `${state.pagesCount} Pages`;
         el('reader-loading').hidden = true;
         el('reader-content').hidden = false;
 
-        // Fetch title if it's a book
         if (!state.isPrivate) {
-            api.get(\/books/\\).then(res => {
+            api.get(`/books/${bookId}`).then(res => {
                 if(res.data && res.data.book) {
                     el('reader-book-title').textContent = res.data.book.title;
-                    document.title = \\ | PDF Reader\;
+                    document.title = `${res.data.book.title} | PDF Reader`;
                 }
             }).catch(()=>{});
         } else {
-            api.get(\/private-library/\\).then(res => {
+            api.get(`/private-library/${privatePdfId}`).then(res => {
                 if(res.data && res.data.privateFile) {
                     el('reader-book-title').textContent = res.data.privateFile.title;
-                    document.title = \\ | Private PDF\;
+                    document.title = `${res.data.privateFile.title} | Private PDF`;
                 }
             }).catch(()=>{});
         }

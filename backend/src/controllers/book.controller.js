@@ -46,7 +46,7 @@ async function readPdf(req, res, next) {
     try {
         const { filePath, mimeType, safeFileName } = await bookService.getPublicPdfStream(req.params.id, req.user);
         res.setHeader('Content-Type', mimeType);
-        res.setHeader('Content-Disposition', \inline; filename="\"\);
+        res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`);
         res.sendFile(filePath);
     } catch (err) { next(err); }
 }

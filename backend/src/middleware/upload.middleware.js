@@ -45,7 +45,7 @@ const privatePdfStorage = multer.diskStorage({
     },
 
     filename(req, file, callback) {
-        const storedFileName = ${crypto.randomUUID()}.pdf;
+        const storedFileName = `${crypto.randomUUID()}.pdf`;
         callback(null, storedFileName);
     }
 });
@@ -74,7 +74,7 @@ const publicPdfStorage = multer.diskStorage({
         }
     },
     filename(req, file, callback) {
-        const storedFileName = ${crypto.randomUUID()}.pdf;
+        const storedFileName = `${crypto.randomUUID()}.pdf`;
         callback(null, storedFileName);
     }
 });
@@ -104,7 +104,7 @@ function handlePrivatePdfUpload(req, res, next) {
             if (error.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({
                     success: false,
-                    message: \PDF file size must be \ bytes or less.\
+                    message: `PDF file size must be ${getPrivatePdfMaxSize()} bytes or less.`
                 });
             }
 
@@ -133,7 +133,7 @@ function handlePublicPdfUpload(req, res, next) {
             if (error.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({
                     success: false,
-                    message: \PDF file size must be \ bytes or less.\
+                    message: `PDF file size must be ${getPrivatePdfMaxSize()} bytes or less.`
                 });
             }
             return res.status(400).json({

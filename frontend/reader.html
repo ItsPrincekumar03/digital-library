@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Read books online in the Digital Library with customizable typography and themes.">
+    <title>Online Reader | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/reader.css">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="reader" data-access="public" class="reader-page reader-theme-light">
+    <!-- Top Progress Bar -->
+    <div id="reader-progress-bar" class="reader-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Reading progress"></div>
+
+    <!-- Reader App Header -->
+    <header class="reader-header" role="banner">
+        <div class="reader-header-inner">
+            <div class="reader-header-left">
+                <a id="reader-back-link" href="library.html" class="reader-nav-link" aria-label="Back to book details">
+                    <span aria-hidden="true">←</span> <span>Book</span>
+                </a>
+                <div class="reader-title-group">
+                    <span id="reader-book-title" class="reader-book-title">Loading book…</span>
+                    <span id="reader-chapter-indicator" class="reader-chapter-indicator muted"></span>
+                </div>
+            </div>
+
+            <div class="reader-header-actions" role="toolbar" aria-label="Reader tools">
+                <button id="btn-toggle-toc" type="button" class="reader-tool-btn" aria-expanded="false" aria-controls="reader-toc-drawer" aria-label="Table of Contents">
+                    <span aria-hidden="true" class="tool-icon">☰</span>
+                    <span class="tool-label">Chapters</span>
+                </button>
+                <button id="btn-toggle-autoscroll" type="button" class="reader-tool-btn" aria-label="Start auto-scroll" title="Toggle Auto-Scroll">
+                    <span aria-hidden="true" class="tool-icon">⬇</span>
+                    <span class="tool-label">Auto-scroll</span>
+                </button>
+                <button id="btn-toggle-settings" type="button" class="reader-tool-btn" aria-expanded="false" aria-controls="reader-settings-drawer" aria-label="Reader Display Settings">
+                    <span aria-hidden="true" class="tool-icon">⚙</span>
+                    <span class="tool-label">Settings</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Backdrop Overlay for Drawers -->
+    <div id="reader-overlay" class="reader-overlay" hidden aria-hidden="true"></div>
+
+    <!-- Table of Contents Drawer -->
+    <aside id="reader-toc-drawer" class="reader-drawer reader-toc-drawer" role="dialog" aria-modal="true" aria-labelledby="toc-heading" hidden>
+        <div class="drawer-header">
+            <h2 id="toc-heading" class="drawer-title">Table of Contents</h2>
+            <button id="btn-close-toc" type="button" class="drawer-close-btn" aria-label="Close Table of Contents">✕</button>
+        </div>
+        <div class="drawer-body">
+            <nav aria-label="Chapters navigation">
+                <ol id="reader-toc-list" class="reader-toc-list"></ol>
+                <p id="reader-toc-empty" class="muted" hidden>No published chapters available.</p>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Reader Settings Drawer -->
+    <aside id="reader-settings-drawer" class="reader-drawer reader-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>
+        <div class="drawer-header">
+            <h2 id="settings-heading" class="drawer-title">Reader Settings</h2>
+            <button id="btn-close-settings" type="button" class="drawer-close-btn" aria-label="Close settings">✕</button>
+        </div>
+        <div class="drawer-body">
+            <!-- Theme Selection -->
+            <fieldset class="setting-group">
+                <legend class="setting-label">Theme</legend>
+                <div class="setting-theme-grid" role="radiogroup" aria-label="Reader theme">
+                    <button type="button" class="theme-option-btn is-active" data-theme="light" aria-label="Light theme">
+                        <span class="theme-swatch theme-swatch-light" aria-hidden="true"></span>
+                        <span>Light</span>
+                    </button>
+                    <button type="button" class="theme-option-btn" data-theme="dark" aria-label="Dark theme">
+                        <span class="theme-swatch theme-swatch-dark" aria-hidden="true"></span>
+                        <span>Dark</span>
+                    </button>
+                    <button type="button" class="theme-option-btn" data-theme="sepia" aria-label="Sepia theme">
+                        <span class="theme-swatch theme-swatch-sepia" aria-hidden="true"></span>
+                        <span>Sepia</span>
+                    </button>
+                </div>
+            </fieldset>
+
+            <!-- Font Family -->
+            <div class="setting-group">
+                <label for="select-font-family" class="setting-label">Font Family</label>
+                <select id="select-font-family" class="setting-select">
+                    <option value="sans">System (Sans-serif)</option>
+                    <option value="serif">Book (Serif)</option>
+                    <option value="mono">Monospace</option>
+                </select>
+            </div>
+
+            <!-- Font Size -->
+            <div class="setting-group">
+                <span class="setting-label" id="font-size-label">Font Size</span>
+                <div class="setting-control-row" role="group" aria-labelledby="font-size-label">
+                    <button id="btn-font-dec" type="button" class="setting-stepper-btn" aria-label="Decrease font size">A−</button>
+                    <span id="font-size-display" class="setting-val-display" aria-live="polite">18px</span>
+                    <button id="btn-font-inc" type="button" class="setting-stepper-btn" aria-label="Increase font size">A+</button>
+                </div>
+            </div>
+
+            <!-- Line Spacing -->
+            <fieldset class="setting-group">
+                <legend class="setting-label">Line Height</legend>
+                <div class="setting-segment-grid" role="radiogroup" aria-label="Line height">
+                    <button type="button" class="segment-btn" data-lineheight="compact">Compact</button>
+                    <button type="button" class="segment-btn is-active" data-lineheight="normal">Normal</button>
+                    <button type="button" class="segment-btn" data-lineheight="relaxed">Relaxed</button>
+                </div>
+            </fieldset>
+
+            <!-- Reading Width -->
+            <fieldset class="setting-group">
+                <legend class="setting-label">Reading Width</legend>
+                <div class="setting-segment-grid" role="radiogroup" aria-label="Reading width">
+                    <button type="button" class="segment-btn" data-width="narrow">Narrow</button>
+                    <button type="button" class="segment-btn is-active" data-width="normal">Normal</button>
+                    <button type="button" class="segment-btn" data-width="wide">Wide</button>
+                </div>
+            </fieldset>
+
+            <!-- Reset Action -->
+            <div class="setting-group setting-footer">
+                <button id="btn-reset-settings" type="button" class="button button-secondary button-full">
+                    Reset to defaults
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Floating Auto-Scroll Control Bar -->
+    <div id="reader-autoscroll-bar" class="reader-autoscroll-bar" role="region" aria-label="Auto-scroll controls" hidden>
+        <span class="autoscroll-status" id="autoscroll-status-text">Auto-scroll: Running</span>
+        <div class="autoscroll-actions">
+            <button id="btn-autoscroll-pause" type="button" class="autoscroll-btn" aria-label="Pause auto-scroll">Pause</button>
+            <div class="autoscroll-speed-group" role="group" aria-label="Scroll speed">
+                <button type="button" class="autoscroll-speed-btn" data-speed="slow" aria-label="Slow speed">1x</button>
+                <button type="button" class="autoscroll-speed-btn is-active" data-speed="normal" aria-label="Normal speed">2x</button>
+                <button type="button" class="autoscroll-speed-btn" data-speed="fast" aria-label="Fast speed">3x</button>
+            </div>
+            <button id="btn-autoscroll-stop" type="button" class="autoscroll-btn autoscroll-btn-stop" aria-label="Stop auto-scroll">✕</button>
+        </div>
+    </div>
+
+    <!-- Main Reader Workspace -->
+    <main class="reader-main" id="reader-main-wrapper">
+        <!-- Resume Reading Notification -->
+        <div id="reader-resume-banner" class="reader-resume-banner" role="status" hidden>
+            <span id="reader-resume-text" class="resume-text">Resume where you left off?</span>
+            <div class="resume-actions">
+                <button id="btn-resume-confirm" type="button" class="button button-primary resume-btn">Continue</button>
+                <button id="btn-resume-dismiss" type="button" class="button button-secondary resume-btn">Dismiss</button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="reader-loading" class="reader-status-card loading-state" role="status" aria-live="polite">
+            <p>Loading chapter…</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="reader-error" class="reader-status-card form-message error-message" role="alert" hidden></div>
+
+        <!-- Safe Reading Article Container -->
+        <article id="reader-content" class="reader-content" tabindex="-1" hidden>
+            <header class="chapter-header">
+                <p id="reader-chapter-eyebrow" class="chapter-eyebrow muted"></p>
+                <h1 id="reader-chapter-title" class="chapter-title"></h1>
+            </header>
+
+            <!-- Dedicated Chapter Text Container for Safe Content & Future TTS -->
+            <div id="reader-body-paragraphs" class="reader-body-paragraphs"></div>
+        </article>
+
+        <!-- Chapter Navigation Bar -->
+        <nav id="reader-bottom-nav" class="reader-bottom-nav" aria-label="Chapter navigation" hidden>
+            <button id="btn-prev-chapter" type="button" class="button button-secondary nav-btn" disabled>
+                <span aria-hidden="true">←</span> Previous Chapter
+            </button>
+            <button id="btn-footer-toc" type="button" class="button button-secondary nav-btn nav-btn-toc">
+                Chapters
+            </button>
+            <button id="btn-next-chapter" type="button" class="button button-primary nav-btn" disabled>
+                Next Chapter <span aria-hidden="true">→</span>
+            </button>
+        </nav>
+    </main>
+</body>
+
+</html>

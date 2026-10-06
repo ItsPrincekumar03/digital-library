@@ -26,3 +26,7 @@ The following testing and verification have been completed for Module 8 (Final B
 
 ## 6. Postman Collection
 A complete Postman collection is generated (`Digital Library API.postman_collection.json`) at the project root covering all endpoints grouped systematically.
+
+## Module 13
+Run \
+ode tests/reader.check.js\ to test the Online Reader.

@@ -91,7 +91,7 @@ function appendChips(container, items, labelProperty) {
     return validItems.length;
 }
 
-function renderChapters(chapters) {
+function renderChapters(chapters, bookId) {
     const list = element("book-chapters");
     list.replaceChildren();
 
@@ -117,14 +117,38 @@ function renderChapters(chapters) {
             : "Untitled chapter";
         const number = Number(chapter.chapter_number);
 
-        item.textContent = Number.isFinite(number)
-            ? `Chapter ${number}: ${title}`
+        const chapterText = Number.isFinite(number)
+            ? Chapter : 
             : title;
+
+        if (bookId && chapter.chapter_id) {
+            const link = document.createElement("a");
+            link.href = 
+eader.html?bookId=&chapterId=;
+            link.textContent = chapterText;
+            link.className = "chapter-link";
+            item.append(link);
+        } else {
+            item.textContent = chapterText;
+        }
+
         list.append(item);
     }
 
     element("chapters-empty").hidden = validChapters.length > 0;
     list.hidden = validChapters.length === 0;
+
+    const bookActions = element("book-actions");
+    const readBtn = element("btn-read-book");
+    if (bookActions && readBtn) {
+        if (validChapters.length > 0 && bookId) {
+            readBtn.href = 
+eader.html?bookId=;
+            bookActions.hidden = false;
+        } else {
+            bookActions.hidden = true;
+        }
+    }
 }
 
 function renderBook(book, authors, categories, chapters) {
@@ -162,7 +186,7 @@ function renderBook(book, authors, categories, chapters) {
     const categoryCount = appendChips(element("book-categories"), categories, "name");
     element("categories-empty").hidden = categoryCount > 0;
 
-    renderChapters(chapters);
+    renderChapters(chapters, book.book_id);
 
     element("book-loading").hidden = true;
     element("book-detail").hidden = false;

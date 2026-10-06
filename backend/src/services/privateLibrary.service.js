@@ -1,10 +1,15 @@
-const path = require('path');
+﻿const path = require('path');
+const fs = require('fs/promises');
 const privateLibraryRepository = require('../repositories/privateLibrary.repository');
 const {
     deleteFileIfExists,
     fileExists,
-    resolvePrivatePdfPath
+    resolvePrivatePdfPath,
+    getPrivateUploadDirectory,
+    getPrivateProcessedDirectory,
+    getPrivateImagesDirectory
 } = require('../utils/fileStorage');
+const { extractPdf } = require('../utils/pdfExtractor');
 
 function notFound() {
     const err = new Error('Private PDF not found.');
@@ -22,15 +27,8 @@ function buildTitle(bodyTitle, originalFileName) {
     const title = typeof bodyTitle === 'string'
         ? bodyTitle.trim()
         : '';
-
-    if (title) {
-        return title;
-    }
-
-    return path.basename(
-        originalFileName,
-        path.extname(originalFileName)
-    ).slice(0, 255) || 'Untitled PDF';
+    if (title) return title;
+    return path.basename(originalFileName, path.extname(originalFileName)).slice(0, 255) || 'Untitled PDF';
 }
 
 function toPublicMetadata(file) {
@@ -47,15 +45,10 @@ function toPublicMetadata(file) {
 }
 
 async function uploadPrivatePdf(user, body, file) {
-    if (!file) {
-        throw badRequest('PDF file is required.');
-    }
+    if (!file) throw badRequest('PDF file is required.');
 
     const title = buildTitle(body.title, file.originalname);
-
-    const description = typeof body.description === 'string'
-        ? body.description.trim()
-        : '';
+    const description = typeof body.description === 'string' ? body.description.trim() : '';
 
     const privateFileId = await privateLibraryRepository.create({
         ownerId: user.user_id,
@@ -68,12 +61,40 @@ async function uploadPrivatePdf(user, body, file) {
         fileSize: file.size
     });
 
-    const privateFile = await privateLibraryRepository.findByIdAndOwner(
-        privateFileId,
-        user.user_id
-    );
+    // Run PDF Extraction
+    try {
+        const fullPdfPath = resolvePrivatePdfPath(file.filename);
+        const filePrefix = `private_${privateFileId}`;
+        const outputDir = getPrivateImagesDirectory();
+        
+        const blocks = await extractPdf(fullPdfPath, outputDir, filePrefix);
+        
+        const jsonPath = `${filePrefix}_processed.json`;
+        const fullJsonPath = path.join(getPrivateProcessedDirectory(), jsonPath);
+        
+        await fs.writeFile(fullJsonPath, JSON.stringify(blocks), 'utf-8');
+        
+        // We need an update method in repository!
+        await privateLibraryRepository.updateProcessedPath(privateFileId, user.user_id, jsonPath);
+    } catch (e) {
+        console.error("Failed to extract PDF content for private file", privateFileId, e);
+    }
 
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(privateFileId, user.user_id);
     return toPublicMetadata(privateFile);
+}
+
+async function getPrivateProcessedContent(user, privateFileId) {
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(privateFileId, user.user_id);
+    if (!privateFile || !privateFile.processed_content_path) throw notFound();
+
+    const filePath = path.join(getPrivateProcessedDirectory(), path.basename(privateFile.processed_content_path));
+    try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+    } catch {
+        throw notFound();
+    }
 }
 
 async function listPrivatePdfs(user) {
@@ -82,61 +103,37 @@ async function listPrivatePdfs(user) {
 }
 
 async function getPrivatePdf(user, privateFileId) {
-    const privateFile = await privateLibraryRepository.findByIdAndOwner(
-        privateFileId,
-        user.user_id
-    );
-
-    if (!privateFile) {
-        throw notFound();
-    }
-
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(privateFileId, user.user_id);
+    if (!privateFile) throw notFound();
     return toPublicMetadata(privateFile);
 }
 
 async function getPrivatePdfForStreaming(user, privateFileId) {
-    const privateFile = await privateLibraryRepository.findByIdAndOwner(
-        privateFileId,
-        user.user_id
-    );
-
-    if (!privateFile) {
-        throw notFound();
-    }
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(privateFileId, user.user_id);
+    if (!privateFile) throw notFound();
 
     const filePath = resolvePrivatePdfPath(privateFile.stored_file_name);
-
     if (!(await fileExists(filePath))) {
         const err = new Error('The PDF file is missing from storage.');
         err.status = 404;
         throw err;
     }
 
-    return {
-        filePath,
-        fileName: privateFile.original_file_name,
-        mimeType: privateFile.mime_type
-    };
+    return { filePath, fileName: privateFile.original_file_name, mimeType: privateFile.mime_type };
 }
 
 async function deletePrivatePdf(user, privateFileId) {
-    const privateFile = await privateLibraryRepository.findByIdAndOwner(
-        privateFileId,
-        user.user_id
-    );
-
-    if (!privateFile) {
-        throw notFound();
-    }
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(privateFileId, user.user_id);
+    if (!privateFile) throw notFound();
 
     const filePath = resolvePrivatePdfPath(privateFile.stored_file_name);
-
     await deleteFileIfExists(filePath);
 
-    await privateLibraryRepository.deleteByIdAndOwner(
-        privateFileId,
-        user.user_id
-    );
+    if (privateFile.processed_content_path) {
+        await deleteFileIfExists(path.join(getPrivateProcessedDirectory(), path.basename(privateFile.processed_content_path)));
+    }
+
+    await privateLibraryRepository.deleteByIdAndOwner(privateFileId, user.user_id);
 }
 
 module.exports = {
@@ -144,5 +141,6 @@ module.exports = {
     listPrivatePdfs,
     getPrivatePdf,
     getPrivatePdfForStreaming,
-    deletePrivatePdf
+    deletePrivatePdf,
+    getPrivateProcessedContent
 };

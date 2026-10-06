@@ -1,46 +1,21 @@
 ﻿const express = require('express');
 const router = express.Router();
-
 const bookController = require('../controllers/book.controller');
-const bookRelationsController = require('../controllers/bookRelations.controller');
-const chapterController = require('../controllers/chapter.controller');
-const requireAuth = require('../middleware/auth.middleware');
-const { requireRole } = require('../middleware/role.middleware');
+const getExtractedImage = require('../controllers/bookImage.controller');
+const { requireAuth } = require('../middleware/auth.middleware');
 const { handlePublicPdfUpload } = require('../middleware/upload.middleware');
-const {
-  createBookRules, updateBookRules, idParamRule, bookIdParamRule, handleValidation,
-} = require('../validators/book.validator');
-const {
-  addAuthorRules, addCategoryRules, handleValidation: handleRelationValidation,
-} = require('../validators/bookRelations.validator');
-const {
-  createChapterRules, updateChapterRules, reorderChaptersRules, handleValidation: handleChapterValidation,
-} = require('../validators/chapter.validator');
 
-// New M13 endpoint
-router.post('/import-pdf', requireAuth, requireRole('ADMIN'), handlePublicPdfUpload, bookController.importPdf);
+router.get('/images/:imageName', getExtractedImage);
+router.get('/', bookController.getAll);
+router.post('/', requireAuth, bookController.create);
+router.post('/import-pdf', requireAuth, handlePublicPdfUpload, bookController.importPdf);
 
-router.post('/', requireAuth, requireRole('ADMIN'), createBookRules, handleValidation, bookController.create);
-router.get('/', requireAuth, bookController.getAll);
-router.get('/:id', requireAuth, idParamRule, handleValidation, bookController.getById);
+router.get('/:id', bookController.getById);
+router.put('/:id', requireAuth, bookController.update);
+router.get('/:id/pdf', bookController.readPdf);
+router.get('/:id/document', bookController.getProcessedDocument);
 
-// New M13 endpoint to read public PDF
-router.get('/:id/pdf', requireAuth, idParamRule, handleValidation, bookController.readPdf);
-
-router.put('/:id', requireAuth, requireRole('ADMIN'), idParamRule, updateBookRules, handleValidation, bookController.update);
-router.patch('/:id/publish', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.publish);
-router.patch('/:id/archive', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.archive);
-
-router.post('/:bookId/authors', requireAuth, requireRole('ADMIN'), bookIdParamRule, addAuthorRules, handleRelationValidation, bookRelationsController.addAuthor);
-router.get('/:bookId/authors', requireAuth, bookIdParamRule, handleRelationValidation, bookRelationsController.getAuthors);
-router.delete('/:bookId/authors/:authorId', requireAuth, requireRole('ADMIN'), bookRelationsController.removeAuthor);
-
-router.post('/:bookId/categories', requireAuth, requireRole('ADMIN'), bookIdParamRule, addCategoryRules, handleRelationValidation, bookRelationsController.addCategory);
-router.get('/:bookId/categories', requireAuth, bookIdParamRule, handleRelationValidation, bookRelationsController.getCategories);
-router.delete('/:bookId/categories/:categoryId', requireAuth, requireRole('ADMIN'), bookRelationsController.removeCategory);
-
-router.post('/:bookId/chapters', requireAuth, requireRole('ADMIN'), bookIdParamRule, createChapterRules, handleChapterValidation, chapterController.create);
-router.get('/:bookId/chapters', requireAuth, bookIdParamRule, handleChapterValidation, chapterController.getForBook);
-router.patch('/:bookId/chapters/reorder', requireAuth, requireRole('ADMIN'), bookIdParamRule, reorderChaptersRules, handleChapterValidation, chapterController.reorder);
+router.put('/:id/publish', requireAuth, bookController.publish);
+router.put('/:id/archive', requireAuth, bookController.archive);
 
 module.exports = router;

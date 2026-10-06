@@ -3,97 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Reader | Digital Library</title>
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <title>Digital Library | Reader</title>
     <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/reader.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
-    <script type="module" src="js/router.js"></script>
 </head>
-<body data-page="reader" data-access="public" class="reader-theme-light">
-    <div id="reader-progress-bar" class="reader-progress-bar"></div>
+<body class="reader-theme-light reader-font-sans reader-spacing-normal reader-width-normal">
 
+    <!-- Navbar -->
     <header class="reader-header">
-        <div class="reader-header-inner">
-            <div class="reader-header-left">
-                <a id="reader-back-link" href="#" class="reader-nav-link">
-                    <span>&larr;</span> <span>Back</span>
-                </a>
-                <div class="reader-title-group">
-                    <span id="reader-book-title" class="reader-book-title">Loading PDF...</span>
-                    <span id="reader-page-indicator" class="reader-chapter-indicator muted"></span>
-                </div>
-            </div>
-
-            <div class="reader-header-actions">
-                <button id="btn-zoom-out" type="button" class="reader-tool-btn" title="Zoom Out">
-                    <span class="tool-label">Zoom Out</span>
-                </button>
-                <span id="zoom-level-display">100%</span>
-                <button id="btn-zoom-in" type="button" class="reader-tool-btn" title="Zoom In">
-                    <span class="tool-label">Zoom In</span>
-                </button>
-                <button id="btn-toggle-settings" type="button" class="reader-tool-btn" title="Reader Settings">
-                    <span class="tool-icon">&#9881;</span>
-                    <span class="tool-label">Settings</span>
-                </button>
-            </div>
+        <div class="reader-header-left">
+            <a href="#" id="reader-back-link" class="button button-text" aria-label="Go back">
+                ← Back
+            </a>
+            <h1 id="reader-book-title" class="reader-title">Loading...</h1>
+        </div>
+        <div class="reader-header-right">
+            <button id="btn-toggle-contents" class="button button-text">Contents</button>
+            <button id="btn-toggle-settings" class="button button-text">Aa Settings</button>
         </div>
     </header>
 
-    <div id="reader-overlay" class="reader-overlay" hidden></div>
+    <!-- Progress Bar -->
+    <div class="reader-progress-container">
+        <div id="reader-progress-bar" class="reader-progress-bar"></div>
+        <div id="reader-progress-text" class="reader-progress-text">0%</div>
+    </div>
 
-    <aside id="reader-settings-drawer" class="reader-drawer reader-settings-drawer" hidden>
-        <div class="drawer-header">
-            <h2 class="drawer-title">Reader Settings</h2>
-            <button id="btn-close-settings" class="drawer-close-btn">&times;</button>
+    <!-- Main Content -->
+    <main id="reader-main" class="reader-main">
+        <div id="reader-loading" class="reader-loading">
+            <h2>Processing Document...</h2>
+            <p>Please wait while we prepare the book for reading.</p>
         </div>
-        <div class="drawer-body">
-            <fieldset class="setting-group">
-                <legend class="setting-label">Theme (Eye-Friendly)</legend>
-                <div class="setting-theme-grid">
-                    <button type="button" class="theme-option-btn is-active" data-theme="light">Light</button>
-                    <button type="button" class="theme-option-btn" data-theme="dark">Dark</button>
-                    <button type="button" class="theme-option-btn" data-theme="sepia">Sepia</button>
-                </div>
-            </fieldset>
+        
+        <div id="reader-error" class="reader-error" hidden></div>
+        
+        <div id="reader-content" class="reader-content" hidden>
+            <!-- Content blocks go here -->
+        </div>
+    </main>
 
-            <fieldset class="setting-group">
-                <legend class="setting-label">Page Spacing</legend>
-                <div class="setting-segment-grid">
-                    <button type="button" class="segment-btn" data-spacing="compact">Compact</button>
-                    <button type="button" class="segment-btn is-active" data-spacing="normal">Normal</button>
-                    <button type="button" class="segment-btn" data-spacing="relaxed">Relaxed</button>
+    <!-- Settings Drawer -->
+    <div id="reader-overlay" class="reader-overlay" hidden></div>
+    <aside id="reader-settings-drawer" class="reader-drawer" hidden>
+        <header class="reader-drawer-header">
+            <h2>Reader Settings</h2>
+            <button id="btn-close-settings" class="button-icon" aria-label="Close Settings">✕</button>
+        </header>
+        <div class="reader-drawer-body">
+            
+            <div class="settings-group">
+                <h3>Theme</h3>
+                <div class="segment-control">
+                    <button class="segment-btn theme-option-btn is-active" data-theme="light">Light</button>
+                    <button class="segment-btn theme-option-btn" data-theme="dark">Dark</button>
+                    <button class="segment-btn theme-option-btn" data-theme="sepia">Sepia</button>
                 </div>
-            </fieldset>
-
-            <fieldset class="setting-group">
-                <legend class="setting-label">Reading Width</legend>
-                <div class="setting-segment-grid">
-                    <button type="button" class="segment-btn" data-width="narrow">Narrow</button>
-                    <button type="button" class="segment-btn is-active" data-width="normal">Normal</button>
-                    <button type="button" class="segment-btn" data-width="wide">Wide</button>
-                </div>
-            </fieldset>
-
-            <div class="setting-group setting-footer">
-                <button id="btn-reset-settings" class="button button-secondary button-full">Reset to defaults</button>
             </div>
+
+            <div class="settings-group">
+                <h3>Font</h3>
+                <div class="segment-control">
+                    <button class="segment-btn font-option-btn is-active" data-font="sans">Sans-serif</button>
+                    <button class="segment-btn font-option-btn" data-font="serif">Serif</button>
+                    <button class="segment-btn font-option-btn" data-font="system">System</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Text Size</h3>
+                <div class="segment-control">
+                    <button class="segment-btn" id="btn-text-decrease">A-</button>
+                    <button class="segment-btn is-active" id="btn-text-reset">A</button>
+                    <button class="segment-btn" id="btn-text-increase">A+</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Line Spacing</h3>
+                <div class="segment-control">
+                    <button class="segment-btn spacing-option-btn" data-spacing="compact">Compact</button>
+                    <button class="segment-btn spacing-option-btn is-active" data-spacing="normal">Normal</button>
+                    <button class="segment-btn spacing-option-btn" data-spacing="relaxed">Relaxed</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Reading Width</h3>
+                <div class="segment-control">
+                    <button class="segment-btn width-option-btn" data-width="narrow">Narrow</button>
+                    <button class="segment-btn width-option-btn is-active" data-width="normal">Normal</button>
+                    <button class="segment-btn width-option-btn" data-width="wide">Wide</button>
+                </div>
+            </div>
+
+            <button id="btn-reset-settings" class="button button-secondary" style="width:100%; margin-top:1rem;">Reset Settings</button>
         </div>
     </aside>
 
-    <main class="reader-main">
-        <div id="reader-loading" class="reader-status-card loading-state">
-            <p>Loading PDF document...</p>
+    <!-- Contents Drawer -->
+    <aside id="reader-contents-drawer" class="reader-drawer reader-drawer-left" hidden>
+        <header class="reader-drawer-header">
+            <h2>Contents</h2>
+            <button id="btn-close-contents" class="button-icon" aria-label="Close Contents">✕</button>
+        </header>
+        <div class="reader-drawer-body">
+            <ul id="reader-toc" class="reader-toc">
+                <!-- TOC items go here -->
+            </ul>
         </div>
-        <div id="reader-error" class="reader-status-card form-message error-message" hidden></div>
-        
-        <article id="reader-content" class="reader-content reader-width-normal reader-spacing-normal" hidden>
-            <!-- PDF pages will be rendered here consecutively -->
-            <div id="pdf-viewer" class="pdf-viewer"></div>
-        </article>
-    </main>
+    </aside>
+
+    <!-- Lightbox for Images -->
+    <div id="image-lightbox" class="image-lightbox" hidden>
+        <button id="btn-close-lightbox" class="button-icon lightbox-close">✕</button>
+        <img id="lightbox-img" src="" alt="Enlarged view">
+    </div>
+
+    <script type="module" src="js/router.js"></script>
+    <script type="module">
+        import { init } from './js/pages/reader.js';
+        init();
+    </script>
 </body>
 </html>

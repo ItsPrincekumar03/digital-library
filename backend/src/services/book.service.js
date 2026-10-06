@@ -1,35 +1,28 @@
-﻿const bookRepository = require('../repositories/book.repository');
-const bookRelationsRepository = require('../repositories/bookRelations.repository');
-const { resolvePublicPdfPath } = require('../utils/fileStorage');
+﻿const path = require('path');
+const fs = require('fs/promises');
+const bookRepository = require('../repositories/book.repository');
+const { BOOK_SORT_COLUMNS, PUBLIC_BOOK_STATUS } = require('../config/constants');
+const { notFound, forbidden, unauthorized } = require('../utils/errors');
 const { parsePagination, parseSort, buildPaginationMeta } = require('../utils/pagination');
-const { PUBLIC_BOOK_STATUS, isAdmin, isBookPubliclyReadable } = require('../utils/bookVisibility');
-const path = require('path');
+const { getPublicUploadDirectory, getPublicProcessedDirectory, getPublicImagesDirectory } = require('../utils/fileStorage');
+const { extractPdf } = require('../utils/pdfExtractor');
 
-function notFound() {
-    const err = new Error('Book not found.');
-    err.status = 404;
-    return err;
+function assertAdmin(user) {
+    if (!user) throw unauthorized();
+    if (user.role !== 'ADMIN') throw forbidden();
 }
 
-function forbidden(message) {
-    const err = new Error(message || 'Only an admin can manage public library books.');
-    err.status = 403;
-    return err;
+function statusFilterFor(user) {
+    if (user?.role === 'ADMIN') return null;
+    return PUBLIC_BOOK_STATUS;
 }
 
-function assertAdmin(requestingUser) {
-    if (!isAdmin(requestingUser)) throw forbidden();
-}
-
-const BOOK_SORT_COLUMNS = ['created_at', 'title', 'status', 'publication_date'];
-
-function statusFilterFor(requestingUser) {
-    return isAdmin(requestingUser) ? undefined : PUBLIC_BOOK_STATUS;
-}
-
-async function createBook(requestingUser, { title, description, coverPath, publicationDate }) {
+async function createBook(requestingUser, data) {
     assertAdmin(requestingUser);
-    const bookId = await bookRepository.create({ ownerUserId: requestingUser.user_id, title, description, coverPath, publicationDate });
+    const bookId = await bookRepository.create({
+        ownerUserId: requestingUser.user_id,
+        ...data
+    });
     return bookRepository.findById(bookId);
 }
 
@@ -37,16 +30,27 @@ async function importPdfBook(requestingUser, { title, description, authorId, cat
     assertAdmin(requestingUser);
     const bookId = await bookRepository.create({
         ownerUserId: requestingUser.user_id,
-        title, description,
+        title, description, authorId, categoryId,
         pdfPath, pdfOriginalName, pdfSize
     });
 
-    if (authorId) {
-        await bookRelationsRepository.addAuthorToBook(bookId, authorId);
+    // Run PDF Extraction
+    try {
+        const fullPdfPath = path.join(getPublicUploadDirectory(), pdfPath);
+        const filePrefix = `book_${bookId}`;
+        const outputDir = getPublicImagesDirectory();
+        
+        const blocks = await extractPdf(fullPdfPath, outputDir, filePrefix);
+        
+        const jsonPath = `${filePrefix}_processed.json`;
+        const fullJsonPath = path.join(getPublicProcessedDirectory(), jsonPath);
+        
+        await fs.writeFile(fullJsonPath, JSON.stringify(blocks), 'utf-8');
+        await bookRepository.updateFields(bookId, { processed_content_path: jsonPath });
+    } catch (e) {
+        console.error("Failed to extract PDF content for book", bookId, e);
     }
-    if (categoryId) {
-        await bookRelationsRepository.addCategoryToBook(bookId, categoryId);
-    }
+
     return bookRepository.findById(bookId);
 }
 
@@ -63,41 +67,56 @@ async function getAllBooksPaginated(requestingUser, query) {
         bookRepository.findAllPaginated({ limit, offset, sortColumn: column, sortDirection: direction, status }),
         bookRepository.countAll(status)
     ]);
-
     return { books, meta: buildPaginationMeta({ page, limit, totalItems }) };
 }
 
 async function getBookById(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
     if (!book) throw notFound();
-    if (!isAdmin(requestingUser) && !isBookPubliclyReadable(book)) throw notFound();
+
+    if (book.status !== PUBLIC_BOOK_STATUS && requestingUser?.role !== 'ADMIN') {
+        if (!requestingUser) throw unauthorized();
+        throw forbidden();
+    }
     return book;
 }
 
 async function getPublicPdfStream(bookId, requestingUser) {
-    const book = await getBookById(bookId, requestingUser); // reuses logic to check if they can read it
-    if (!book.pdf_path) {
-        const err = new Error('This book does not have an attached PDF file.');
-        err.status = 404;
-        throw err;
+    const book = await getBookById(bookId, requestingUser);
+    if (!book.pdf_path) throw notFound('Book does not have a PDF');
+
+    const safeFileName = path.basename(book.pdf_path);
+    const filePath = path.join(getPublicUploadDirectory(), safeFileName);
+
+    try {
+        await fs.access(filePath);
+    } catch {
+        throw notFound('PDF file not found on server');
     }
 
-    return {
-        filePath: resolvePublicPdfPath(book.pdf_path),
-        mimeType: 'application/pdf',
-        safeFileName: (book.pdf_original_name || 'book.pdf').replace(/"/g, '')
-    };
+    return { filePath, mimeType: 'application/pdf', safeFileName: book.pdf_original_name || safeFileName };
 }
 
-async function updateBook(bookId, requestingUser, { title, description, coverPath, publicationDate, status }) {
+async function getPublicProcessedContent(bookId, requestingUser) {
+    const book = await getBookById(bookId, requestingUser);
+    if (!book.processed_content_path) throw notFound('Book does not have processed content');
+
+    const safeFileName = path.basename(book.processed_content_path);
+    const filePath = path.join(getPublicProcessedDirectory(), safeFileName);
+
+    try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(content);
+    } catch {
+        throw notFound('Processed content not found on server');
+    }
+}
+
+async function updateBook(bookId, requestingUser, updates) {
     assertAdmin(requestingUser);
     const book = await bookRepository.findById(bookId);
     if (!book) throw notFound();
-    
-    const fields = { title, description: description ?? null, cover_path: coverPath ?? null, publication_date: publicationDate ?? null };
-    if (status !== undefined) fields.status = status;
-    
-    await bookRepository.updateFields(bookId, fields);
+    await bookRepository.updateFields(bookId, updates);
     return bookRepository.findById(bookId);
 }
 
@@ -118,5 +137,6 @@ async function archiveBook(bookId, requestingUser) {
 }
 
 module.exports = {
-    createBook, importPdfBook, getAllBooks, getAllBooksPaginated, getBookById, getPublicPdfStream, updateBook, publishBook, archiveBook
+    createBook, importPdfBook, getAllBooks, getAllBooksPaginated, getBookById, 
+    getPublicPdfStream, getPublicProcessedContent, updateBook, publishBook, archiveBook
 };

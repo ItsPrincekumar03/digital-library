@@ -1,4 +1,6 @@
-﻿const bookService = require('../services/book.service');
+﻿import os
+
+code = r'''const bookService = require('../services/book.service');
 
 async function create(req, res, next) {
     try {
@@ -46,15 +48,8 @@ async function readPdf(req, res, next) {
     try {
         const { filePath, mimeType, safeFileName } = await bookService.getPublicPdfStream(req.params.id, req.user);
         res.setHeader('Content-Type', mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`);
+        res.setHeader('Content-Disposition', inline; filename="");
         res.sendFile(filePath);
-    } catch (err) { next(err); }
-}
-
-async function getProcessedDocument(req, res, next) {
-    try {
-        const content = await bookService.getPublicProcessedContent(req.params.id, req.user);
-        res.status(200).json({ success: true, data: { content } });
     } catch (err) { next(err); }
 }
 
@@ -80,5 +75,11 @@ async function archive(req, res, next) {
 }
 
 module.exports = {
-    create, importPdf, getAll, getById, readPdf, getProcessedDocument, update, publish, archive
+    create, importPdf, getAll, getById, readPdf, update, publish, archive
 };
+'''
+
+with open('backend/src/controllers/book.controller.js', 'w', encoding='utf-8') as f:
+    f.write(code)
+
+print("Controller fixed.")

@@ -1,22 +1,20 @@
 ﻿import { api } from "../api.js";
 import { API_BASE_URL } from "../config.js";
 
-const STORAGE_KEY_PREFS = "digitalLibrary.pdfReaderSettings";
+const STORAGE_KEY_PREFS = "digitalLibrary.readerSettings";
+const PROGRESS_KEY = "digitalLibrary.readerProgress";
 
 let state = {
     pdfId: null,
     isPrivate: false,
-    pdfDoc: null,
-    pagesCount: 0,
-    pageContainers: [],
-    renderedPages: new Set(),
-    zoomLevel: 1.0,
     prefs: {
         theme: "light",
+        font: "sans",
+        sizeOffset: 0,
         spacing: "normal",
         width: "normal"
     },
-    renderTaskQueue: []
+    blocks: []
 };
 
 function el(id) { return document.getElementById(id); }
@@ -32,144 +30,186 @@ function loadPrefs() {
     } catch(e){}
 }
 
-function applyPrefs() {
-    document.body.classList.remove('reader-theme-light', 'reader-theme-dark', 'reader-theme-sepia');
-    document.body.classList.add(`reader-theme-${state.prefs.theme}`);
-
-    const content = el('reader-content');
-    if(content) {
-        content.classList.remove('reader-width-narrow', 'reader-width-normal', 'reader-width-wide');
-        content.classList.add(`reader-width-${state.prefs.width}`);
-
-        content.classList.remove('reader-spacing-compact', 'reader-spacing-normal', 'reader-spacing-relaxed');
-        content.classList.add(`reader-spacing-${state.prefs.spacing}`);
-    }
-
-    document.querySelectorAll('.theme-option-btn').forEach(b => b.classList.toggle('is-active', b.dataset.theme === state.prefs.theme));
-    document.querySelectorAll('.segment-btn[data-spacing]').forEach(b => b.classList.toggle('is-active', b.dataset.spacing === state.prefs.spacing));
-    document.querySelectorAll('.segment-btn[data-width]').forEach(b => b.classList.toggle('is-active', b.dataset.width === state.prefs.width));
+function saveProgress() {
+    try {
+        const total = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = total > 0 ? (window.scrollY / total) : 0;
+        const key = `${PROGRESS_KEY}_${state.isPrivate ? 'priv' : 'pub'}_${state.pdfId}`;
+        localStorage.setItem(key, String(pct));
+    } catch(e){}
 }
 
-function updateZoomDisplay() {
-    el('zoom-level-display').textContent = `${Math.round(state.zoomLevel * 100)}%`;
+function loadProgress() {
+    try {
+        const key = `${PROGRESS_KEY}_${state.isPrivate ? 'priv' : 'pub'}_${state.pdfId}`;
+        const val = localStorage.getItem(key);
+        if (val) {
+            const pct = parseFloat(val);
+            if (pct > 0) {
+                const total = document.documentElement.scrollHeight - window.innerHeight;
+                window.scrollTo({ top: total * pct, behavior: 'auto' });
+            }
+        }
+    } catch(e){}
+}
+
+function applyPrefs() {
+    const b = document.body;
+    b.classList.remove('reader-theme-light', 'reader-theme-dark', 'reader-theme-sepia');
+    b.classList.add(`reader-theme-${state.prefs.theme}`);
+
+    b.classList.remove('reader-font-sans', 'reader-font-serif', 'reader-font-system');
+    b.classList.add(`reader-font-${state.prefs.font}`);
+
+    b.classList.remove('reader-spacing-compact', 'reader-spacing-normal', 'reader-spacing-relaxed');
+    b.classList.add(`reader-spacing-${state.prefs.spacing}`);
+
+    b.classList.remove('reader-width-narrow', 'reader-width-normal', 'reader-width-wide');
+    b.classList.add(`reader-width-${state.prefs.width}`);
+    
+    // Size offset (18px base)
+    const newSize = 18 + (state.prefs.sizeOffset * 2);
+    document.documentElement.style.setProperty('--reader-font-size', `${newSize}px`);
+
+    // Update UI toggles
+    document.querySelectorAll('.theme-option-btn').forEach(btn => btn.classList.toggle('is-active', btn.dataset.theme === state.prefs.theme));
+    document.querySelectorAll('.font-option-btn').forEach(btn => btn.classList.toggle('is-active', btn.dataset.font === state.prefs.font));
+    document.querySelectorAll('.spacing-option-btn').forEach(btn => btn.classList.toggle('is-active', btn.dataset.spacing === state.prefs.spacing));
+    document.querySelectorAll('.width-option-btn').forEach(btn => btn.classList.toggle('is-active', btn.dataset.width === state.prefs.width));
 }
 
 function bindEvents() {
     el('btn-toggle-settings').addEventListener('click', () => {
         el('reader-overlay').hidden = false;
         el('reader-settings-drawer').hidden = false;
+        el('reader-contents-drawer').hidden = true;
     });
 
-    el('btn-close-settings').addEventListener('click', () => {
-        el('reader-overlay').hidden = true;
+    el('btn-toggle-contents').addEventListener('click', () => {
+        el('reader-overlay').hidden = false;
+        el('reader-contents-drawer').hidden = false;
         el('reader-settings-drawer').hidden = true;
     });
-    el('reader-overlay').addEventListener('click', () => {
+
+    el('btn-close-settings').addEventListener('click', closeDrawers);
+    el('btn-close-contents').addEventListener('click', closeDrawers);
+    el('reader-overlay').addEventListener('click', closeDrawers);
+
+    function closeDrawers() {
         el('reader-overlay').hidden = true;
         el('reader-settings-drawer').hidden = true;
-    });
+        el('reader-contents-drawer').hidden = true;
+    }
 
     document.querySelectorAll('.theme-option-btn').forEach(b => {
         b.addEventListener('click', () => { state.prefs.theme = b.dataset.theme; savePrefs(); applyPrefs(); });
     });
-    document.querySelectorAll('.segment-btn[data-spacing]').forEach(b => {
+    document.querySelectorAll('.font-option-btn').forEach(b => {
+        b.addEventListener('click', () => { state.prefs.font = b.dataset.font; savePrefs(); applyPrefs(); });
+    });
+    document.querySelectorAll('.spacing-option-btn').forEach(b => {
         b.addEventListener('click', () => { state.prefs.spacing = b.dataset.spacing; savePrefs(); applyPrefs(); });
     });
-    document.querySelectorAll('.segment-btn[data-width]').forEach(b => {
+    document.querySelectorAll('.width-option-btn').forEach(b => {
         b.addEventListener('click', () => { state.prefs.width = b.dataset.width; savePrefs(); applyPrefs(); });
     });
 
+    el('btn-text-decrease').addEventListener('click', () => {
+        if(state.prefs.sizeOffset > -2) { state.prefs.sizeOffset--; savePrefs(); applyPrefs(); }
+    });
+    el('btn-text-increase').addEventListener('click', () => {
+        if(state.prefs.sizeOffset < 5) { state.prefs.sizeOffset++; savePrefs(); applyPrefs(); }
+    });
+    el('btn-text-reset').addEventListener('click', () => {
+        state.prefs.sizeOffset = 0; savePrefs(); applyPrefs();
+    });
+
     el('btn-reset-settings').addEventListener('click', () => {
-        state.prefs = { theme: 'light', spacing: 'normal', width: 'normal' };
+        state.prefs = { theme: 'light', font: 'sans', sizeOffset: 0, spacing: 'normal', width: 'normal' };
         savePrefs(); applyPrefs();
-        state.zoomLevel = 1.0; updateZoomDisplay();
-        reRenderAllVisible();
     });
 
-    el('btn-zoom-in').addEventListener('click', () => {
-        if (state.zoomLevel < 2.5) { state.zoomLevel += 0.25; updateZoomDisplay(); reRenderAllVisible(); }
-    });
-    el('btn-zoom-out').addEventListener('click', () => {
-        if (state.zoomLevel > 0.5) { state.zoomLevel -= 0.25; updateZoomDisplay(); reRenderAllVisible(); }
+    el('btn-close-lightbox').addEventListener('click', () => el('image-lightbox').hidden = true);
+    el('image-lightbox').addEventListener('click', (e) => {
+        if(e.target === el('image-lightbox')) el('image-lightbox').hidden = true;
     });
 
-    window.addEventListener('scroll', updateProgress, {passive: true});
+    let scrollTimeout;
+    window.addEventListener('scroll', () => {
+        updateProgress();
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(saveProgress, 300);
+    }, {passive: true});
 }
 
 function updateProgress() {
     const total = document.documentElement.scrollHeight - window.innerHeight;
     const pct = total > 0 ? (window.scrollY / total) * 100 : 0;
-    el('reader-progress-bar').style.width = `${pct}%`;
+    const clamped = Math.min(100, Math.max(0, pct));
+    el('reader-progress-bar').style.width = `${clamped}%`;
+    el('reader-progress-text').textContent = `${Math.round(clamped)}%`;
 }
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            const pageNum = Number(entry.target.dataset.pageNumber);
-            renderPage(pageNum);
-        }
-    });
-}, { rootMargin: '500px 0px' });
-
-function setupViewer() {
-    const viewer = el('pdf-viewer');
-    viewer.innerHTML = '';
-    state.pageContainers = [];
-    state.renderedPages.clear();
-
-    for(let i=1; i<=state.pagesCount; i++) {
-        const container = document.createElement('div');
-        container.className = 'pdf-page-container';
-        container.dataset.pageNumber = i;
-        
-        const placeholder = document.createElement('div');
-        placeholder.className = 'pdf-page-placeholder';
-        placeholder.textContent = `Loading page ${i}...`;
-        
-        container.appendChild(placeholder);
-        viewer.appendChild(container);
-        state.pageContainers.push(container);
-        
-        observer.observe(container);
+function getImageUrl(imageName) {
+    if (state.isPrivate) {
+        return `${API_BASE_URL}/private-library/images/${imageName}`;
     }
+    return `${API_BASE_URL}/books/images/${imageName}`;
 }
 
-async function renderPage(pageNum) {
-    if (state.renderedPages.has(pageNum)) return;
+function renderContent() {
+    const container = el('reader-content');
+    const toc = el('reader-toc');
+    container.innerHTML = '';
+    toc.innerHTML = '';
     
-    const container = state.pageContainers[pageNum - 1];
-    if(!container) return;
+    let headingCount = 0;
 
-    try {
-        const page = await state.pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: state.zoomLevel * 1.5 }); // Base scale + user zoom
+    state.blocks.forEach((block, index) => {
+        if (block.type === 'system') {
+            const p = document.createElement('p');
+            p.className = 'system-msg';
+            p.textContent = block.text;
+            container.appendChild(p);
+        } else if (block.type === 'heading') {
+            const h = document.createElement('h2');
+            h.id = `heading-${index}`;
+            h.textContent = block.text;
+            container.appendChild(h);
 
-        const canvas = document.createElement('canvas');
-        canvas.className = 'pdf-page-canvas';
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.width = '100%'; 
-        
-        const renderContext = { canvasContext: ctx, viewport: viewport };
-        await page.render(renderContext).promise;
-
-        container.innerHTML = '';
-        container.appendChild(canvas);
-        state.renderedPages.add(pageNum);
-    } catch (e) {
-        console.error('Page render error:', e);
-    }
-}
-
-function reRenderAllVisible() {
-    state.renderedPages.clear();
-    state.pageContainers.forEach(container => {
-        if(container.firstChild && container.firstChild.tagName === 'CANVAS') {
-            container.innerHTML = `<div class="pdf-page-placeholder">Reloading...</div>`;
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = `#heading-${index}`;
+            a.textContent = block.text;
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                el('reader-overlay').hidden = true;
+                el('reader-contents-drawer').hidden = true;
+                h.scrollIntoView({ behavior: 'smooth' });
+            });
+            li.appendChild(a);
+            toc.appendChild(li);
+            headingCount++;
+        } else if (block.type === 'paragraph') {
+            const p = document.createElement('p');
+            p.textContent = block.text;
+            container.appendChild(p);
+        } else if (block.type === 'image') {
+            const img = document.createElement('img');
+            img.src = getImageUrl(block.src);
+            img.loading = 'lazy';
+            img.alt = 'Document image';
+            img.addEventListener('click', () => {
+                el('lightbox-img').src = img.src;
+                el('image-lightbox').hidden = false;
+            });
+            container.appendChild(img);
         }
     });
+
+    if (headingCount === 0) {
+        toc.innerHTML = '<li><span style="color:var(--reader-text-muted)">No chapters detected.</span></li>';
+    }
 }
 
 function showError(msg) {
@@ -187,59 +227,61 @@ export async function init() {
     loadPrefs();
     applyPrefs();
     bindEvents();
-    updateZoomDisplay();
 
-    let pdfUrl = '';
+    let docUrl = '';
     
     if (privatePdfId) {
         state.isPrivate = true;
         state.pdfId = privatePdfId;
-        pdfUrl = `${API_BASE_URL}/private-library/${privatePdfId}/file`;
+        docUrl = `/private-library/${privatePdfId}/document`;
         el('reader-back-link').href = 'private-library.html';
     } else if (bookId) {
         state.isPrivate = false;
         state.pdfId = bookId;
-        pdfUrl = `${API_BASE_URL}/books/${bookId}/pdf`;
+        docUrl = `/books/${bookId}/document`;
         el('reader-back-link').href = `book.html?id=${bookId}`;
     } else {
-        return showError("No PDF ID provided.");
+        return showError("No document ID provided.");
     }
 
     try {
-        const loadingTask = pdfjsLib.getDocument({
-            url: pdfUrl,
-            withCredentials: true
-        });
+        const response = await api.get(docUrl);
+        if (response.data && response.data.content) {
+            state.blocks = response.data.content;
+            renderContent();
+            
+            el('reader-loading').hidden = true;
+            el('reader-content').hidden = false;
+            
+            // Set Title
+            if (state.isPrivate) {
+                api.get(`/private-library/${privatePdfId}`).then(res => {
+                    if(res.data && res.data.privateFile) {
+                        el('reader-book-title').textContent = res.data.privateFile.title;
+                        document.title = `${res.data.privateFile.title} | Reader`;
+                    }
+                }).catch(()=>{});
+            } else {
+                api.get(`/books/${bookId}`).then(res => {
+                    if(res.data && res.data.book) {
+                        el('reader-book-title').textContent = res.data.book.title;
+                        document.title = `${res.data.book.title} | Reader`;
+                    }
+                }).catch(()=>{});
+            }
 
-        state.pdfDoc = await loadingTask.promise;
-        state.pagesCount = state.pdfDoc.numPages;
-        
-        el('reader-page-indicator').textContent = `${state.pagesCount} Pages`;
-        el('reader-loading').hidden = true;
-        el('reader-content').hidden = false;
-
-        if (!state.isPrivate) {
-            api.get(`/books/${bookId}`).then(res => {
-                if(res.data && res.data.book) {
-                    el('reader-book-title').textContent = res.data.book.title;
-                    document.title = `${res.data.book.title} | PDF Reader`;
-                }
-            }).catch(()=>{});
+            // Restore scroll
+            setTimeout(loadProgress, 100);
         } else {
-            api.get(`/private-library/${privatePdfId}`).then(res => {
-                if(res.data && res.data.privateFile) {
-                    el('reader-book-title').textContent = res.data.privateFile.title;
-                    document.title = `${res.data.privateFile.title} | Private PDF`;
-                }
-            }).catch(()=>{});
+            throw new Error("Invalid document content.");
         }
-
-        setupViewer();
     } catch(err) {
         if(err.status === 401 || err.status === 403) {
-            showError("You don't have permission to view this PDF.");
+            showError("You don't have permission to view this document.");
+        } else if (err.status === 404) {
+            showError("Document is still processing or missing. Wait a moment and refresh.");
         } else {
-            showError("Failed to load PDF. It might be corrupted or missing.");
+            showError("Failed to load document.");
         }
     }
 }

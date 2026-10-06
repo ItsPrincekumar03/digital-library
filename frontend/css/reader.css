@@ -1,103 +1,347 @@
-﻿.reader-page { min-height: 100vh; margin: 0; transition: background-color 180ms ease, color 180ms ease; overflow-x: hidden; }
+﻿/* ==========================================================================
+   QUICKNOVEL READER THEMES & LAYOUT
+   ========================================================================== */
 
-.reader-theme-light {
-    --reader-bg: #f8fafc; --reader-surface: #ffffff; --reader-text: #1e293b; --reader-muted: #64748b;
-    --reader-border: #e2e8f0; --reader-header-bg: rgba(255, 255, 255, 0.94); --reader-overlay-bg: rgba(15, 23, 42, 0.45);
-    --reader-accent: #3156a3; --reader-accent-hover: #233f7d; --reader-active-item: #eff6ff;
-    --pdf-filter: none; --pdf-canvas-bg: #fff;
+   :root {
+    /* Reader Base Settings */
+    --reader-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --reader-font-serif: Georgia, 'Times New Roman', Times, serif;
+    --reader-font-system: system-ui;
+    
+    --reader-font-family: var(--reader-font-sans);
+    --reader-font-size: 18px;
+    --reader-line-height: 1.6;
+    --reader-max-width: 800px;
+    
+    /* Light Theme (Default) */
+    --reader-bg: #fdfdfd;
+    --reader-surface: #ffffff;
+    --reader-text: #2c3e50;
+    --reader-text-muted: #7f8c8d;
+    --reader-border: #ecf0f1;
+    --reader-primary: #3498db;
+    --reader-progress-bg: #e0e0e0;
 }
 
-.reader-theme-dark {
-    --reader-bg: #0f172a; --reader-surface: #1e293b; --reader-text: #e2e8f0; --reader-muted: #94a3b8;
-    --reader-border: #334155; --reader-header-bg: rgba(15, 23, 42, 0.94); --reader-overlay-bg: rgba(0, 0, 0, 0.65);
-    --reader-accent: #60a5fa; --reader-accent-hover: #93c5fd; --reader-active-item: #28374f;
-    /* Eye-friendly dark mode for PDF rendering using CSS filters (invert colors and adjust hue) */
-    --pdf-filter: invert(90%) hue-rotate(180deg) contrast(85%) brightness(90%);
-    --pdf-canvas-bg: #111;
+/* Dark Theme */
+body.reader-theme-dark {
+    --reader-bg: #121212;
+    --reader-surface: #1e1e1e;
+    --reader-text: #e0e0e0;
+    --reader-text-muted: #9e9e9e;
+    --reader-border: #333333;
+    --reader-primary: #64b5f6;
+    --reader-progress-bg: #424242;
 }
 
-.reader-theme-sepia {
-    --reader-bg: #fbf0d9; --reader-surface: #f4e6c7; --reader-text: #433422; --reader-muted: #796147;
-    --reader-border: #e6d3b3; --reader-header-bg: rgba(244, 230, 199, 0.94); --reader-overlay-bg: rgba(67, 52, 34, 0.4);
-    --reader-accent: #9a531e; --reader-accent-hover: #7b3e12; --reader-active-item: #ebe0c5;
-    /* Warm/sepia mode for PDF rendering */
-    --pdf-filter: sepia(60%) contrast(90%) brightness(95%);
-    --pdf-canvas-bg: #fbf0d9;
+/* Sepia Theme */
+body.reader-theme-sepia {
+    --reader-bg: #f4ecd8;
+    --reader-surface: #fbf0d9;
+    --reader-text: #5b4636;
+    --reader-text-muted: #8b7666;
+    --reader-border: #e6dac3;
+    --reader-primary: #d35400;
+    --reader-progress-bg: #e6dac3;
 }
 
-body.reader-page { background: var(--reader-bg); color: var(--reader-text); }
+/* Fonts */
+body.reader-font-sans { --reader-font-family: var(--reader-font-sans); }
+body.reader-font-serif { --reader-font-family: var(--reader-font-serif); }
+body.reader-font-system { --reader-font-family: var(--reader-font-system); }
 
-.reader-progress-bar { position: fixed; top: 0; left: 0; height: 4px; width: 0%; background: var(--reader-accent); z-index: 100; }
-.reader-header { position: sticky; top: 0; left: 0; right: 0; z-index: 40; background: var(--reader-header-bg); backdrop-filter: blur(10px); border-bottom: 1px solid var(--reader-border); }
-.reader-header-inner { max-width: 1200px; margin: 0 auto; padding: 0.65rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.reader-header-left { display: flex; align-items: center; gap: 1rem; min-width: 0; }
-.reader-nav-link { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; font-size: 0.9rem; color: var(--reader-accent); text-decoration: none; padding: 0.4rem 0.65rem; border-radius: 6px; }
-.reader-nav-link:hover { background-color: var(--reader-active-item); color: var(--reader-accent-hover); }
-.reader-title-group { display: flex; flex-direction: column; min-width: 0; }
-.reader-book-title { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
-.reader-chapter-indicator { font-size: 0.8rem; color: var(--reader-muted); }
+/* Spacing */
+body.reader-spacing-compact { --reader-line-height: 1.3; }
+body.reader-spacing-normal { --reader-line-height: 1.6; }
+body.reader-spacing-relaxed { --reader-line-height: 2.0; }
 
-.reader-header-actions { display: flex; align-items: center; gap: 0.5rem; }
-.reader-tool-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.75rem; font-size: 0.88rem; font-weight: 600; color: var(--reader-text); background: var(--reader-surface); border: 1px solid var(--reader-border); border-radius: 8px; cursor: pointer; }
-.reader-tool-btn:hover { border-color: var(--reader-accent); background: var(--reader-active-item); }
+/* Width */
+body.reader-width-narrow { --reader-max-width: 600px; }
+body.reader-width-normal { --reader-max-width: 800px; }
+body.reader-width-wide { --reader-max-width: 1000px; }
 
-.reader-overlay { position: fixed; inset: 0; background: var(--reader-overlay-bg); z-index: 50; }
-.reader-drawer { position: fixed; top: 0; bottom: 0; width: min(380px, 92vw); background: var(--reader-surface); border-left: 1px solid var(--reader-border); z-index: 60; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transition: transform 250ms ease; right: 0; }
-.reader-drawer[hidden] { display: none !important; }
-.drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--reader-border); }
-.drawer-title { font-size: 1.15rem; font-weight: 700; margin: 0; }
-.drawer-close-btn { background: transparent; border: none; font-size: 1.5rem; color: var(--reader-muted); cursor: pointer; }
-.drawer-body { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.5rem; }
 
-.setting-group { border: none; margin: 0; padding: 0; }
-.setting-label { display: block; font-weight: 650; font-size: 0.88rem; margin-bottom: 0.5rem; }
-.setting-theme-grid, .setting-segment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
-.theme-option-btn, .segment-btn { padding: 0.65rem 0.4rem; background: var(--reader-surface); color: var(--reader-text); border: 1px solid var(--reader-border); border-radius: 8px; cursor: pointer; }
-.theme-option-btn.is-active, .segment-btn.is-active { border-color: var(--reader-accent); background: var(--reader-active-item); font-weight: bold; }
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
 
-.reader-main { display: flex; flex-direction: column; align-items: center; padding: 2.5rem 1.25rem 5rem; }
-.reader-status-card { max-width: 600px; width: 100%; margin: 3rem auto; text-align: center; }
+body {
+    background-color: var(--reader-bg);
+    color: var(--reader-text);
+    font-family: var(--reader-font-family);
+    margin: 0;
+    padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    overflow-y: scroll;
+}
 
-.reader-content { width: 100%; margin: 0 auto; outline: none; transition: max-width 180ms ease; display: flex; flex-direction: column; align-items: center; }
-
-/* Width Settings */
-.reader-width-narrow { max-width: 600px; }
-.reader-width-normal { max-width: 850px; }
-.reader-width-wide { max-width: 1200px; }
-
-/* Spacing Settings */
-.reader-spacing-compact .pdf-page-container { margin-bottom: 8px; }
-.reader-spacing-normal .pdf-page-container { margin-bottom: 24px; }
-.reader-spacing-relaxed .pdf-page-container { margin-bottom: 48px; }
-
-/* PDF Viewer Styles */
-.pdf-viewer { width: 100%; display: flex; flex-direction: column; align-items: center; }
-.pdf-page-container {
-    position: relative;
-    width: 100%;
-    background-color: var(--pdf-canvas-bg);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.reader-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--reader-surface);
+    border-bottom: 1px solid var(--reader-border);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.reader-header-left, .reader-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.reader-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.reader-progress-container {
+    position: sticky;
+    top: 50px;
+    z-index: 9;
+    background-color: var(--reader-surface);
+    border-bottom: 1px solid var(--reader-border);
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 1rem;
+}
+
+.reader-progress-bar {
+    height: 4px;
+    background-color: var(--reader-primary);
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.reader-progress-text {
+    margin-left: 1rem;
+    font-size: 0.8rem;
+    color: var(--reader-text-muted);
+}
+
+.reader-main {
+    max-width: var(--reader-max-width);
+    margin: 2rem auto 5rem;
+    padding: 0 1.5rem;
+    transition: max-width 0.3s ease;
+}
+
+/* ==========================================================================
+   CONTENT STYLING
+   ========================================================================== */
+
+.reader-content {
+    font-size: var(--reader-font-size);
+    line-height: var(--reader-line-height);
+}
+
+.reader-content h2, .reader-content h3 {
+    margin-top: 3rem;
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.reader-content p {
+    margin-bottom: 1.5rem;
+    text-indent: 1.5rem;
+    text-align: justify;
+}
+
+.reader-content p.system-msg {
+    text-indent: 0;
+    text-align: center;
+    font-style: italic;
+    color: var(--reader-text-muted);
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: rgba(127,127,127,0.1);
+    border-radius: 4px;
+}
+
+.reader-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 2rem auto;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.reader-content img:hover {
+    transform: scale(1.02);
+}
+
+/* ==========================================================================
+   DRAWERS (Settings & Contents)
+   ========================================================================== */
+
+.reader-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.reader-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 320px;
+    background-color: var(--reader-surface);
+    color: var(--reader-text);
+    z-index: 101;
+    box-shadow: -4px 0 15px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.reader-drawer-left {
+    right: auto;
+    left: 0;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+}
+
+.reader-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--reader-border);
+}
+
+.reader-drawer-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.reader-drawer-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Settings Controls */
+.settings-group {
+    margin-bottom: 1.5rem;
+}
+.settings-group h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    color: var(--reader-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.segment-control {
+    display: flex;
+    border: 1px solid var(--reader-border);
+    border-radius: 4px;
     overflow: hidden;
 }
 
-.pdf-page-canvas {
-    max-width: 100%;
-    height: auto !important;
-    display: block;
-    /* Apply dark/sepia mode filters directly to the canvas */
-    filter: var(--pdf-filter);
-    transition: filter 0.3s ease;
+.segment-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    color: var(--reader-text);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.segment-btn:not(:last-child) {
+    border-right: 1px solid var(--reader-border);
+}
+.segment-btn.is-active {
+    background: var(--reader-primary);
+    color: #fff;
+    font-weight: 600;
 }
 
-/* Add a loading skeleton or placeholder for pages */
-.pdf-page-placeholder {
-    width: 100%;
-    aspect-ratio: 1 / 1.414; /* Standard A4 ratio */
-    background: var(--reader-surface);
+/* TOC */
+.reader-toc {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.reader-toc li {
+    margin-bottom: 0.5rem;
+}
+
+.reader-toc a {
+    color: var(--reader-text);
+    text-decoration: none;
+    display: block;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.reader-toc a:hover {
+    background: rgba(127,127,127,0.1);
+}
+
+/* Lightbox */
+.image-lightbox {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 200;
     display: flex;
-    align-items: center;
     justify-content: center;
-    color: var(--reader-muted);
+    align-items: center;
+    padding: 2rem;
+}
+
+.image-lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: #fff;
+    font-size: 2rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+/* Utilities */
+.button-text {
+    background: transparent;
+    color: var(--reader-text);
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+.button-text:hover { color: var(--reader-primary); }
+.button-icon {
+    background: transparent;
+    border: none;
+    color: var(--reader-text);
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+@media (max-width: 600px) {
+    .reader-main { padding: 0 1rem; }
+    .reader-drawer { width: 100%; }
+    .reader-title { max-width: 150px; }
 }

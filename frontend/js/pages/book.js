@@ -118,13 +118,12 @@ function renderChapters(chapters, bookId) {
         const number = Number(chapter.chapter_number);
 
         const chapterText = Number.isFinite(number)
-            ? Chapter : 
+            ? `Chapter ${number}: ${title}`
             : title;
 
         if (bookId && chapter.chapter_id) {
             const link = document.createElement("a");
-            link.href = 
-eader.html?bookId=&chapterId=;
+            link.href = `reader.html?bookId=${encodeURIComponent(String(bookId))}&chapterId=${encodeURIComponent(String(chapter.chapter_id))}`;
             link.textContent = chapterText;
             link.className = "chapter-link";
             item.append(link);
@@ -142,8 +141,7 @@ eader.html?bookId=&chapterId=;
     const readBtn = element("btn-read-book");
     if (bookActions && readBtn) {
         if (validChapters.length > 0 && bookId) {
-            readBtn.href = 
-eader.html?bookId=;
+            readBtn.href = `reader.html?bookId=${encodeURIComponent(String(bookId))}`;
             bookActions.hidden = false;
         } else {
             bookActions.hidden = true;

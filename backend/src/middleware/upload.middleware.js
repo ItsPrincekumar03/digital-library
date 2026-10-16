@@ -3,7 +3,9 @@ const path = require('path');
 const multer = require('multer');
 const {
     ensurePrivateUploadDirectory,
-    getPrivateUploadDirectory
+    getPrivateUploadDirectory,
+    ensurePublicUploadDirectory,
+    getPublicUploadDirectory
 } = require('../utils/fileStorage');
 
 const PDF_MIME_TYPES = new Set([
@@ -15,6 +17,20 @@ const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function getPrivatePdfMaxSize() {
     const configuredSize = Number.parseInt(
+        process.env.PRIVATE_LIBRARY_MAX_FILE_SIZE_BYTES || '',
+        10
+    );
+
+    if (Number.isSafeInteger(configuredSize) && configuredSize > 0) {
+        return configuredSize;
+    }
+
+    return DEFAULT_MAX_FILE_SIZE;
+}
+
+function getPublicPdfMaxSize() {
+    const configuredSize = Number.parseInt(
+        process.env.PUBLIC_LIBRARY_MAX_FILE_SIZE_BYTES ||
         process.env.PRIVATE_LIBRARY_MAX_FILE_SIZE_BYTES || '',
         10
     );
@@ -91,7 +107,68 @@ function handlePrivatePdfUpload(req, res, next) {
     });
 }
 
+const publicPdfStorage = multer.diskStorage({
+    async destination(req, file, callback) {
+        try {
+            await ensurePublicUploadDirectory();
+            callback(null, getPublicUploadDirectory());
+        } catch (error) {
+            callback(error);
+        }
+    },
+
+    filename(req, file, callback) {
+        const storedFileName = `${crypto.randomUUID()}.pdf`;
+        callback(null, storedFileName);
+    }
+});
+
+const publicPdfUpload = multer({
+    storage: publicPdfStorage,
+    limits: {
+        fileSize: getPublicPdfMaxSize()
+    },
+    fileFilter(req, file, callback) {
+        if (!isPdfFile(file)) {
+            return callback(new Error('Only PDF files are allowed.'));
+        }
+
+        callback(null, true);
+    }
+});
+
+function handlePublicPdfUpload(req, res, next) {
+    const uploadSinglePdf = publicPdfUpload.single('pdf');
+
+    uploadSinglePdf(req, res, (error) => {
+        if (!error) {
+            return next();
+        }
+
+        if (error instanceof multer.MulterError) {
+            if (error.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    success: false,
+                    message: `PDF file size must be ${getPublicPdfMaxSize()} bytes or less.`
+                });
+            }
+
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        return res.status(400).json({
+            success: false,
+            message: error.message || 'PDF upload failed.'
+        });
+    });
+}
+
 module.exports = {
     handlePrivatePdfUpload,
-    getPrivatePdfMaxSize
+    handlePublicPdfUpload,
+    getPrivatePdfMaxSize,
+    getPublicPdfMaxSize
 };

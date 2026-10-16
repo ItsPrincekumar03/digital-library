@@ -57,6 +57,31 @@ async function setStatus(bookId, status) {
     );
 }
 
+async function updatePdfMetadata(bookId, { originalName, storedName, size }) {
+    const [result] = await pool.query(
+        `UPDATE books
+         SET pdf_original_name = ?, pdf_stored_name = ?, pdf_size = ?,
+             pdf_uploaded_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE book_id = ?`,
+        [originalName, storedName, size, bookId]
+    );
+    return result;
+}
+
+// Module 13.2 — points the book at its extracted-text JSON file (or NULL when
+// extraction was unavailable). Reuses the legacy processed_content_path column.
+async function updateProcessedPath(bookId, processedName) {
+    const [result] = await pool.query(
+        `UPDATE books
+         SET processed_content_path = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE book_id = ?`,
+        [processedName, bookId]
+    );
+    return result;
+}
+
 // sortColumn / sortDirection are checked against a whitelist in the service layer.
 async function findAllPaginated({ limit, offset, sortColumn, sortDirection, status }) {
     if (status) {
@@ -83,6 +108,7 @@ async function countAll(status) {
 }
 
 module.exports = {
-    create, findAll, findById, updateFields, archive, setStatus,
+    create, findAll, findById, updateFields, archive, setStatus, updatePdfMetadata,
+    updateProcessedPath,
     VALID_STATUSES, WRITABLE_STATUSES, findAllPaginated, countAll,
 };

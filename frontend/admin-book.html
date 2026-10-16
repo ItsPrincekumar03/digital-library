@@ -79,6 +79,61 @@
             </div>
         </section>
 
+        <section class="admin-info-card" aria-labelledby="book-pdf-heading">
+            <div class="admin-info-header">
+                <div>
+                    <p class="eyebrow">Original file</p>
+
+                    <h2 id="book-pdf-heading">
+                        Administrative PDF import
+                    </h2>
+
+                    <p class="muted">
+                        Attach the original PDF to this book. Uploading does not publish the book.
+                    </p>
+                </div>
+            </div>
+
+            <div class="admin-info-grid">
+                <div>
+                    <span class="admin-info-label">
+                        Original filename
+                    </span>
+
+                    <span id="book-pdf-original-name" class="admin-info-value admin-break-word">
+                        —
+                    </span>
+                </div>
+
+                <div>
+                    <span class="admin-info-label">
+                        Uploaded
+                    </span>
+
+                    <span id="book-pdf-uploaded-at" class="admin-info-value">
+                        —
+                    </span>
+                </div>
+            </div>
+
+            <form id="book-pdf-form" enctype="multipart/form-data">
+                <div class="admin-form-field admin-form-field-full">
+                    <label for="book-pdf-file">
+                        PDF file
+                        <span aria-hidden="true">*</span>
+                    </label>
+
+                    <input id="book-pdf-file" type="file" accept="application/pdf,.pdf" required>
+                </div>
+
+                <p id="book-pdf-message" class="form-message" role="status" aria-live="polite" hidden></p>
+
+                <button id="book-pdf-submit" class="button button-primary" type="submit">
+                    Import PDF
+                </button>
+            </form>
+        </section>
+
         <nav class="admin-tabs" aria-label="Book management sections">
             <button class="admin-tab is-active" type="button" data-tab="authors" aria-selected="true">
                 Authors

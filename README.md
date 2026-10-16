@@ -16,6 +16,21 @@ A monolithic web application for managing a digital library.
 4. Create the MySQL database (if it doesn't exist):
    CREATE DATABASE digital_library;
 
+### Development demo accounts
+
+After creating the database and applying `database/schema.sql`, run from the `backend` folder:
+
+    npm run seed:dev
+
+This creates two local demo accounts. Use them only on your own machine.
+
+| Role  | Login ID             | Password        |
+|-------|----------------------|-----------------|
+| ADMIN | demoadmin@example.com | Demoadmin@123  |
+| USER  | demouser@example.com  | Demouser@123   |
+
+The seed requires `NODE_ENV=development` in your `.env`, refuses to run in production, and never changes an existing account.
+
 5. Start the server in development mode:
    npm run dev
 

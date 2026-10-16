@@ -79,6 +79,10 @@ function friendlyError(error) {
     }
 
     if (error.status === 400) {
+        if (typeof error.message === "string" && error.message.trim()
+            && error.message !== "Request failed (400).") {
+            return error.message;
+        }
         return "Some information is invalid. Please check your input.";
     }
 
@@ -280,6 +284,8 @@ function renderBook() {
         .textContent =
         getBookCoverPath(book) || "—";
 
+    renderBookPdf();
+
     document.title =
         `${title} | Administration`;
 }
@@ -287,6 +293,49 @@ function renderBook() {
 /* -------------------------------------------------------
    AUTHORS
 ------------------------------------------------------- */
+
+function renderBookPdf() {
+    const nameElement = element("book-pdf-original-name");
+    const uploadedElement = element("book-pdf-uploaded-at");
+    if (!nameElement || !uploadedElement) { return; }
+    const originalName = book?.pdf_original_name ?? book?.pdfOriginalName ?? null;
+    const uploadedAt = book?.pdf_uploaded_at ?? book?.pdfUploadedAt ?? null;
+    nameElement.textContent = (typeof originalName === "string" && originalName.trim()) ? originalName : "—";
+    uploadedElement.textContent = formatDate(uploadedAt);
+}
+function showPdfMessage(message, type) {
+    const node = element("book-pdf-message");
+    if (!node) { return; }
+    node.textContent = message;
+    node.hidden = false;
+    node.dataset.type = type || "info";
+}
+async function importBookPdf(event) {
+    event.preventDefault();
+    const input = element("book-pdf-file");
+    const button = element("book-pdf-submit");
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) { showPdfMessage("Please choose a PDF file.", "error"); return; }
+    const formData = new FormData();
+    formData.append("pdf", file);
+    button.disabled = true;
+    try {
+        const response = await api.post("/books/" + encodeURIComponent(String(bookId)) + "/pdf", formData);
+        const updated = unwrapResource(response, "book");
+        if (updated && typeof updated === "object") { book = Object.assign({}, book, updated); renderBookPdf(); }
+        else { await loadBook(); }
+        input.value = "";
+        showPdfMessage("PDF imported successfully.", "success");
+    } catch (error) {
+        showPdfMessage(friendlyError(error), "error");
+    } finally {
+        button.disabled = false;
+    }
+}
+function bindPdfImport() {
+    const form = element("book-pdf-form");
+    if (form) { form.addEventListener("submit", importBookPdf); }
+}
 
 async function loadBookAuthors() {
     try {
@@ -1484,6 +1533,7 @@ export async function init() {
     bookId = numericId;
 
     bindTabs();
+    bindPdfImport();
     bindDialogs();
 
     try {

@@ -6,8 +6,9 @@ const bookRelationsController = require('../controllers/bookRelations.controller
 const chapterController = require('../controllers/chapter.controller');
 const requireAuth = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
+const { handlePublicPdfUpload } = require('../middleware/upload.middleware');
 const {
-  createBookRules, updateBookRules, idParamRule, bookIdParamRule, handleValidation,
+  createBookRules, updateBookRules, idParamRule, bookIdParamRule, imageNameParamRule, handleValidation,
 } = require('../validators/book.validator');
 const {
   addAuthorRules, addCategoryRules, handleValidation: handleRelationValidation,
@@ -19,9 +20,12 @@ const {
 router.post('/', requireAuth, requireRole('ADMIN'), createBookRules, handleValidation, bookController.create);
 router.get('/', requireAuth, bookController.getAll);
 router.get('/:id', requireAuth, idParamRule, handleValidation, bookController.getById);
+router.get('/:id/document', requireAuth, idParamRule, handleValidation, bookController.getDocument);
+router.get('/:id/images/:imageName', requireAuth, idParamRule, imageNameParamRule, handleValidation, bookController.getImage);
 router.put('/:id', requireAuth, requireRole('ADMIN'), idParamRule, updateBookRules, handleValidation, bookController.update);
 router.patch('/:id/publish', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.publish);
 router.patch('/:id/archive', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.archive);
+router.post('/:id/pdf', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, handlePublicPdfUpload, bookController.importPdf);
 
 router.post('/:bookId/authors', requireAuth, requireRole('ADMIN'), bookIdParamRule, addAuthorRules, handleRelationValidation, bookRelationsController.addAuthor);
 router.get('/:bookId/authors', requireAuth, bookIdParamRule, handleRelationValidation, bookRelationsController.getAuthors);

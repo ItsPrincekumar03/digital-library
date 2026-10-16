@@ -1,0 +1,1098 @@
+/* Module 13.5 — continuous reader styles. Reuses the base theme tokens. */
+
+/* ---- Module 13.6 — reader settings, themes and layout variables ----
+ *
+ * Every setting is a CSS custom property on .read-shell, so applying a
+ * preference never touches the DOM built by read.js. Theme colours are
+ * declared per theme below and only ever apply inside the reader shell,
+ * leaving the site-wide theme untouched.
+ */
+
+.read-shell {
+    /* Typography — overridden inline by read-settings.js */
+    --rd-font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    --rd-font-size: 17px;
+    --rd-line-height: 1.75;
+    --rd-paragraph-gap: 0.95em;
+    --rd-reading-width: 120rem;
+    --rd-side-margin: 2.25rem;
+    --rd-block-padding: 2rem;
+    --rd-letter-spacing: 0em;
+    --rd-text-align: left;
+    --rd-hyphens: normal;
+
+    /* Theme — light is the default and matches the M13.5 appearance. */
+    --rd-bg: #ffffff;
+    --rd-text: #1d2939;
+    --rd-heading: #101828;
+    --rd-muted: #5b6472;
+    --rd-caption: #5b6472;
+    --rd-border: #dfe4ec;
+    --rd-controls: #ffffff;
+    --rd-control-text: #1d2939;
+    --rd-focus: #1d4ed8;
+    --rd-badge-bg: #eef1f6;
+    --rd-badge-text: #475467;
+    --rd-figure-border: #dfe4ec;
+    --rd-figure-bg: #f7f9fc;
+    --rd-notice-bg: #f7f9fc;
+
+    margin-bottom: 3rem;
+}
+
+/* Dark theme. Colours verified to WCAG AA against .read-content background. */
+.read-shell[data-read-theme="dark"] {
+    --rd-bg: #151a21;
+    --rd-text: #e5e9ef;
+    --rd-heading: #f7f9fc;
+    --rd-muted: #a3adbc;
+    --rd-caption: #a3adbc;
+    --rd-border: #3b4553;
+    --rd-controls: #232b36;
+    --rd-control-text: #e5e9ef;
+    --rd-focus: #7aa2f7;
+    --rd-badge-bg: #232b36;
+    --rd-badge-text: #c8d1de;
+    --rd-figure-border: #3b4553;
+    --rd-figure-bg: #1d242d;
+    --rd-notice-bg: #1d242d;
+}
+
+/* Sepia theme. */
+.read-shell[data-read-theme="sepia"] {
+    --rd-bg: #f4ecd8;
+    --rd-text: #3a2f21;
+    --rd-heading: #2c2317;
+    --rd-muted: #5f5040;
+    --rd-caption: #5f5040;
+    --rd-border: #c9b491;
+    --rd-controls: #e6d9bd;
+    --rd-control-text: #3a2f21;
+    --rd-focus: #7a4e19;
+    --rd-badge-bg: #e6d9bd;
+    --rd-badge-text: #4a3d2b;
+    --rd-figure-border: #c9b491;
+    --rd-figure-bg: #ece0c6;
+    --rd-notice-bg: #ece0c6;
+}
+
+/* Warm Cream theme. */
+.read-shell[data-read-theme="warmCream"] {
+    --rd-bg: #FFFBEB;
+    --rd-text: #292524;
+    --rd-heading: #1C1917;
+    --rd-muted: #57534E;
+    --rd-caption: #57534E;
+    --rd-border: #E5DCC3;
+    --rd-controls: #FFF7E0;
+    --rd-control-text: #292524;
+    --rd-focus: #1D4ED8;
+    --rd-badge-bg: #FDE68A;
+    --rd-badge-text: #292524;
+    --rd-figure-border: #E5DCC3;
+    --rd-figure-bg: #FFF7E0;
+    --rd-notice-bg: #FFF7E0;
+}
+
+/* Soft Green theme. Muted is #365314 (approved); #4D7C0F was not used. */
+.read-shell[data-read-theme="softGreen"] {
+    --rd-bg: #F0FDF4;
+    --rd-text: #14532D;
+    --rd-heading: #052E16;
+    --rd-muted: #365314;
+    --rd-caption: #365314;
+    --rd-border: #B9DFC2;
+    --rd-controls: #DCFCE7;
+    --rd-control-text: #14532D;
+    --rd-focus: #166534;
+    --rd-badge-bg: #BBF7D0;
+    --rd-badge-text: #14532D;
+    --rd-figure-border: #B9DFC2;
+    --rd-figure-bg: #DCFCE7;
+    --rd-notice-bg: #DCFCE7;
+}
+
+/* Night AMOLED theme. Figures keep a 1px border and a slightly lighter
+   well (#111111 on #000000) so images never blend into the page.
+   Images themselves are never inverted or filtered. */
+.read-shell[data-read-theme="nightAmoled"] {
+    --rd-bg: #000000;
+    --rd-text: #EDEDED;
+    --rd-heading: #FFFFFF;
+    --rd-muted: #A8A8A8;
+    --rd-caption: #A8A8A8;
+    --rd-border: #2E2E2E;
+    --rd-controls: #111111;
+    --rd-control-text: #EDEDED;
+    --rd-focus: #93C5FD;
+    --rd-badge-bg: #1F2937;
+    --rd-badge-text: #EDEDED;
+    --rd-figure-border: #2E2E2E;
+    --rd-figure-bg: #111111;
+    --rd-notice-bg: #111111;
+}
+
+/* Eye Comfort theme. --rd-bg default is the warmth-35 ramp value; the
+   settings module overrides it inline from the warmth slider. Muted is
+   #5C5142: both candidates passed at both ramp ends, this one has margin. */
+.read-shell[data-read-theme="eyeComfort"] {
+    --rd-bg: #F6EDD9;
+    --rd-text: #3B332A;
+    --rd-heading: #2A241C;
+    --rd-muted: #5C5142;
+    --rd-caption: #5C5142;
+    --rd-border: #D8C9A6;
+    --rd-controls: #F1E7CE;
+    --rd-control-text: #3B332A;
+    --rd-focus: #8A5A20;
+    --rd-badge-bg: #E4D3AC;
+    --rd-badge-text: #3B332A;
+    --rd-figure-border: #D8C9A6;
+    --rd-figure-bg: #F1E7CE;
+    --rd-notice-bg: #F1E7CE;
+}
+
+/* ---- Page-level theme ----
+   The theme tokens above are declared on .read-shell, so a child element
+   inherits them. The page background lives on an ANCESTOR (body), which
+   cannot inherit from a descendant. These rules re-declare only the page
+   background and page foreground per theme, scoped to the reader page so
+   the site-wide theme is untouched. */
+body[data-page="read"] {
+    background: var(--rd-page-bg, #ffffff);
+    color: var(--rd-page-text, #1d2939);
+}
+
+body[data-page="read"][data-read-theme="light"] {
+    --rd-page-bg: #ffffff;
+    --rd-page-text: #1d2939;
+}
+
+body[data-page="read"][data-read-theme="dark"] {
+    --rd-page-bg: #151a21;
+    --rd-page-text: #e5e9ef;
+}
+
+body[data-page="read"][data-read-theme="sepia"] {
+    --rd-page-bg: #f4ecd8;
+    --rd-page-text: #3a2f21;
+}
+
+body[data-page="read"][data-read-theme="warmCream"] {
+    --rd-page-bg: #FFFBEB;
+    --rd-page-text: #292524;
+}
+
+body[data-page="read"][data-read-theme="softGreen"] {
+    --rd-page-bg: #F0FDF4;
+    --rd-page-text: #14532D;
+}
+
+body[data-page="read"][data-read-theme="nightAmoled"] {
+    --rd-page-bg: #000000;
+    --rd-page-text: #EDEDED;
+}
+
+body[data-page="read"][data-read-theme="eyeComfort"] {
+    --rd-page-bg: #F6EDD9;
+    --rd-page-text: #3B332A;
+}
+
+/* The reader's own header, back link and error text follow the page
+   foreground so they stay legible on the darker themes. */
+body[data-page="read"] main,
+body[data-page="read"] .back-link,
+body[data-page="read"] .read-header {
+    color: var(--rd-page-text);
+}
+
+/* Reader-only header overrides.
+   The site header is shared chrome built by layout.js:
+     #site-header > header.site-header > nav.container.navbar
+       > a.brand (with span.brand-mark), div.nav-links > a / button.button
+   layout.css paints .site-header (surface + border), .brand and
+   .nav-links a with site colours, and .brand-mark with the primary swatch.
+   Each is overridden below on the reader page only, so no other page and no
+   site-wide rule changes. */
+body[data-page="read"] #site-header .site-header {
+    background: var(--rd-page-bg);
+    border-bottom-color: var(--rd-border);
+}
+
+body[data-page="read"] #site-header .brand,
+body[data-page="read"] #site-header .nav-links a {
+    color: var(--rd-page-text);
+}
+
+/* The brand mark is a solid swatch, not text: it keeps its own fill so the
+   "D" stays legible on every theme, and only its ring follows the page. */
+body[data-page="read"] #site-header .brand-mark {
+    color: #fff;
+    background: var(--rd-focus);
+}
+
+.read-shell {
+    color: var(--rd-text);
+    background: var(--rd-bg);
+    font-family: var(--rd-font-family);
+    font-size: var(--rd-font-size);
+    line-height: var(--rd-line-height);
+    letter-spacing: var(--rd-letter-spacing);
+}
+
+.read-shell .read-content {
+    background: var(--rd-bg);
+    color: var(--rd-text);
+    border-color: var(--rd-border);
+}
+
+.read-shell .read-h2,
+.read-shell .read-h3 {
+    color: var(--rd-heading);
+    font-family: var(--rd-font-family);
+    line-height: 1.3;
+}
+
+.read-shell .read-paragraph,
+.read-shell .read-list-item,
+.read-shell .read-toc {
+    font-family: var(--rd-font-family);
+    font-size: var(--rd-font-size);
+    line-height: var(--rd-line-height);
+    letter-spacing: var(--rd-letter-spacing);
+    text-align: var(--rd-text-align);
+    hyphens: var(--rd-hyphens);
+    -webkit-hyphens: var(--rd-hyphens);
+    overflow-wrap: anywhere;
+}
+
+.read-shell .read-paragraph {
+    margin-bottom: var(--rd-paragraph-gap);
+}
+
+.read-shell .read-caption {
+    color: var(--rd-caption);
+    font-size: calc(var(--rd-font-size) * 0.85);
+    line-height: 1.6;
+}
+
+.read-shell .read-notice {
+    background: var(--rd-notice-bg);
+    border-color: var(--rd-border);
+    color: var(--rd-text);
+}
+
+.read-shell .read-page-badge {
+    background: var(--rd-badge-bg);
+    color: var(--rd-badge-text);
+    border-color: var(--rd-border);
+}
+
+/* Images keep their own appearance: a subtle frame only, never a filter. */
+.read-shell .read-figure {
+    background: var(--rd-figure-bg);
+    border: 1px solid var(--rd-figure-border);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.read-shell .read-image {
+    background: transparent;
+    border-color: var(--rd-figure-border);
+}
+
+.read-shell .read-figure-loading,
+.read-shell .read-figure-missing {
+    border-color: var(--rd-border);
+    color: var(--rd-muted);
+    background: transparent;
+}
+
+/* ---- Layout driven by the width and margin settings ---- */
+
+.read-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.read-shell .read-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: var(--rd-reading-width);
+    /* Side margin comes straight from the setting at desktop and tablet.
+       The only cap is the 639px override further down. */
+    padding: var(--rd-block-padding) var(--rd-side-margin) calc(var(--rd-block-padding) + 1rem);
+}
+
+.read-shell .read-settings-panel {
+    flex: 0 0 20rem;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    background: var(--rd-controls);
+    color: var(--rd-control-text);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem 1.25rem;
+}
+
+/* ---- Focus mode: chrome away, text only ---- */
+
+/* The floating exit control lives outside .read-actions so the bottom-row
+   rules cannot hide it. It is the only chrome that stays on screen. */
+.read-focus-exit {
+    position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 90;
+    min-height: 36px;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 999px;
+    background: var(--rd-controls);
+    color: var(--rd-control-text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 650;
+}
+
+.read-focus-exit:hover {
+    background: var(--rd-figure-bg);
+}
+
+body[data-read-focus="on"] #read-site-header,
+body[data-read-focus="on"] #site-header,
+body[data-read-focus="on"] .read-shell>.read-header,
+body[data-read-focus="on"] .read-shell>#read-notice,
+body[data-read-focus="on"] .read-shell>#read-storage-notice,
+body[data-read-focus="on"] .back-link,
+body[data-read-focus="on"] #read-settings-panel,
+body[data-read-focus="on"] .read-actions {
+    display: none;
+}
+
+.read-shell>.read-header,
+.read-shell>#read-notice,
+.back-link {
+    transition: opacity 150ms ease;
+}
+
+/* ---- Panel internals ---- */
+
+.read-settings-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.read-settings-title {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.read-settings-close,
+.read-restore {
+    min-height: 36px;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.88rem;
+}
+
+.read-restore {
+    width: 100%;
+    margin-top: 0.5rem;
+    font-weight: 650;
+}
+
+.read-settings-close:hover,
+.read-restore:hover {
+    background: var(--rd-figure-bg);
+}
+
+.read-fieldset {
+    margin: 0 0 0.9rem;
+    padding: 0.65rem 0.75rem 0.75rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 10px;
+}
+
+.read-legend {
+    padding: 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--rd-muted);
+}
+
+.read-label {
+    display: block;
+    margin: 0.5rem 0 0.2rem;
+    font-size: 0.85rem;
+    color: var(--rd-muted);
+}
+
+.read-value {
+    color: var(--rd-text);
+    font-weight: 650;
+}
+
+.read-select,
+.read-settings-panel input[type="range"] {
+    width: 100%;
+    color: var(--rd-control-text);
+}
+
+.read-select {
+    min-height: 38px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 8px;
+    background: var(--rd-bg);
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.read-radio-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+}
+
+.read-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+}
+
+.read-help {
+    margin: 0.3rem 0 0;
+    font-size: 0.82rem;
+    color: var(--rd-muted);
+}
+
+/* Preview uses the same variables as the reader, so it tracks every change. */
+.read-preview {
+    border: 1px dashed var(--rd-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.7rem;
+    background: var(--rd-bg);
+    color: var(--rd-text);
+}
+
+.read-preview-heading {
+    margin: 0 0 0.3rem;
+    font-family: var(--rd-font-family);
+    font-size: calc(var(--rd-font-size) * 1.05);
+    line-height: 1.3;
+    color: var(--rd-heading);
+}
+
+.read-preview-paragraph {
+    margin: 0;
+    font-family: var(--rd-font-family);
+    font-size: var(--rd-font-size);
+    line-height: var(--rd-line-height);
+    letter-spacing: var(--rd-letter-spacing);
+    color: var(--rd-text);
+}
+
+/* ---- Triggers and the storage notice ---- */
+
+.read-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.read-trigger {
+    min-height: 38px;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 999px;
+    background: var(--rd-controls);
+    color: var(--rd-control-text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 650;
+}
+
+.read-trigger:hover {
+    background: var(--rd-figure-bg);
+}
+
+.read-trigger[aria-pressed="true"] {
+    background: var(--rd-badge-bg);
+    color: var(--rd-badge-text);
+}
+
+.read-storage-notice {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 8px;
+    background: var(--rd-notice-bg);
+    color: var(--rd-muted);
+    font-size: 0.88rem;
+}
+
+/* ---- Progress bar ---- */
+
+.read-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    z-index: 40;
+    pointer-events: none;
+}
+
+.read-progress-bar {
+    width: 0;
+    height: 100%;
+    background: var(--rd-focus, #1d4ed8);
+}
+
+/* ---- Focus outlines stay visible in every theme ---- */
+
+.read-shell :focus-visible,
+.read-settings-panel :focus-visible,
+.read-trigger:focus-visible,
+.read-progress~* :focus-visible {
+    outline: 2px solid var(--rd-focus);
+    outline-offset: 2px;
+}
+
+.read-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Responsive: side panel, then overlay, then bottom sheet ---- */
+
+@media (max-width: 1023px) {
+    .read-shell .read-settings-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(22rem, 92vw);
+        max-height: none;
+        border-radius: 0;
+        border-top: 0;
+        border-bottom: 0;
+        border-right: 0;
+        z-index: 50;
+        box-shadow: -8px 0 28px rgba(16, 24, 40, 0.18);
+    }
+}
+
+@media (max-width: 639px) {
+    .read-layout {
+        display: block;
+    }
+
+    .read-shell .read-content {
+        max-width: 100%;
+        /* True cap, per spec: settings up to 1rem apply as chosen, anything
+           larger stops here so content can never clip. */
+        padding-left: min(var(--rd-side-margin), 1rem);
+        padding-right: min(var(--rd-side-margin), 1rem);
+    }
+
+    /* Bottom sheet, with a 4.5rem action row left clear at the bottom so it
+       never covers the trigger row. */
+    .read-shell .read-settings-panel {
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 1rem;
+        width: 100%;
+        max-height: 70vh;
+        border-radius: 12px 12px 0 0;
+        border-right: 0;
+        box-shadow: 0 -8px 28px rgba(16, 24, 40, 0.18);
+    }
+}
+
+/* No transitions or animation when reduced motion is requested. */
+@media (prefers-reduced-motion: reduce) {
+
+    .read-shell *,
+    .read-shell *::before,
+    .read-shell *::after {
+        transition-duration: 0.001ms !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* M13.6.7: wide, Wikipedia-style reading surface on desktop.
+   The page keeps a gutter around the whole column (including the header and
+   back link); the text then fills the remaining width. The margin slider
+   controls the gutter inside the column via --rd-side-margin padding. */
+@media (min-width: 900px) {
+    body[data-page="read"] main.container {
+        width: 100%;
+        max-width: none;
+        padding-inline: clamp(1rem, 3vw, 3rem);
+    }
+
+    .read-layout {
+        display: block;
+    }
+
+    .read-shell .read-content {
+        flex: none;
+        width: min(100%, var(--rd-reading-width));
+        max-width: 100%;
+        margin-inline: auto;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        /* Theme-aware: --rd-bg is the reader background token. */
+        background: var(--rd-bg);
+    }
+
+    .read-shell .read-settings-panel {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        width: 20rem;
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+        z-index: 70;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    }
+}
+
+.read-header {
+    margin-bottom: 1.5rem;
+}
+
+.read-header h1 {
+    margin-bottom: 0.35rem;
+}
+
+.read-notice {
+    margin-bottom: 1.5rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+.read-content {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 2rem 2.25rem 3rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.read-page {
+    padding: 0 0 1.75rem;
+}
+
+.read-page+.read-page {
+    border-top: 2px solid var(--color-border);
+    padding-top: 1.25rem;
+}
+
+.read-page-head {
+    margin-bottom: 1rem;
+}
+
+.read-page-badge {
+    display: inline-block;
+    padding: 0.2rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-background);
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.read-page-marker {
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.read-h2 {
+    margin: 0.5rem 0 0.85rem;
+    font-size: 1.4rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.read-h3 {
+    margin: 0.4rem 0 0.7rem;
+    font-size: 1.12rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.read-paragraph {
+    margin-bottom: 0.95rem;
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+}
+
+.read-list {
+    margin: 0 0 0.95rem 1.25rem;
+    padding: 0;
+}
+
+.read-list-item {
+    margin-bottom: 0.45rem;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.read-toc {
+    margin-bottom: 0.4rem;
+    font-size: 0.98rem;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+.read-caption {
+    margin-bottom: 0.9rem;
+    font-size: 0.9rem;
+    font-style: italic;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.read-figure {
+    margin: 1.25rem 0;
+}
+
+.read-figure-loading,
+.read-figure-missing {
+    padding: 1.5rem 1rem;
+    border: 1px dashed var(--color-border);
+    border-radius: 8px;
+    color: var(--color-muted);
+    background: var(--color-background);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.read-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-background);
+}
+
+.read-figure-caption {
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+    .read-content {
+        padding: 1.25rem 1rem 2rem;
+        border-radius: 10px;
+    }
+
+    .read-page {
+        padding-bottom: 1.25rem;
+    }
+
+    .read-page+.read-page {
+        padding-top: 1rem;
+    }
+
+    .read-h2 {
+        font-size: 1.22rem;
+    }
+
+    .read-h3 {
+        font-size: 1.05rem;
+    }
+
+    .read-paragraph,
+    .read-list-item {
+        font-size: 1rem;
+        line-height: 1.72;
+    }
+}
+
+/* Module 13.7: chapter drawer. Floats over the text; one drawer at a time. */
+.read-shell .read-chapters-panel {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    width: 20rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    z-index: 70;
+    padding: 1rem 1.15rem 1.25rem;
+    background: var(--rd-controls);
+    color: var(--rd-control-text);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Only a shown panel gets display: flex, so the hidden attribute still hides it. */
+.read-shell .read-chapters-panel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+/* Higher specificity than the rule above, so Focus Mode always hides the drawer. */
+body[data-read-focus="on"] .read-shell .read-chapters-panel {
+    display: none;
+}
+
+.read-chapters-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.read-chapters-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--rd-control-text);
+}
+
+.read-shell .read-chapters-close,
+.read-shell .read-chapters-nav button {
+    min-height: 36px;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 999px;
+    background: var(--rd-bg);
+    color: var(--rd-control-text);
+    font: inherit;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+
+.read-chapters-empty {
+    margin: 0;
+    font-size: 0.86rem;
+}
+
+.read-chapters-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.read-shell .read-chapters-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: inherit;
+    border: 0;
+    border-radius: 6px;
+    padding: 0.45rem 0.55rem;
+    font: inherit;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.read-shell .read-chapters-item.is-sub {
+    padding-left: 1.25rem;
+    font-size: 0.86rem;
+}
+
+.read-shell .read-chapters-item:hover {
+    background: var(--rd-figure-bg);
+}
+
+.read-shell .read-chapters-item[aria-current="true"] {
+    background: var(--rd-badge-bg);
+    color: var(--rd-badge-text);
+    font-weight: 650;
+}
+
+.read-shell .read-chapters-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.read-shell .read-chapters-nav button {
+    flex: 1;
+}
+
+.read-shell .read-chapters-panel :focus-visible {
+    outline: 2px solid var(--rd-focus);
+    outline-offset: 2px;
+}
+
+/* Phone: bottom sheet clear of the action row, as the settings panel is. */
+@media (max-width: 639px) {
+    .read-shell .read-chapters-panel {
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 1rem;
+        width: 100%;
+        max-height: 70vh;
+        border-radius: 12px 12px 0 0;
+        border-left: 0;
+        border-right: 0;
+        box-shadow: 0 -8px 28px rgba(16, 24, 40, 0.18);
+    }
+}
+
+/* Module 13.8 step 2: top bar and tap-to-toggle chrome.
+   Top bar, bottom bar, site header, back link and page heading hide and show
+   together. Focus Mode hides everything except the text and its exit button. */
+.read-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 2.5rem;
+    padding: 0.4rem 1rem;
+    background: var(--rd-bg);
+    color: var(--rd-text);
+    border-bottom: 1px solid var(--rd-border);
+    font-size: 0.85rem;
+}
+
+.read-topbar-chapter {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 650;
+}
+
+.read-topbar-page {
+    flex: none;
+    color: var(--rd-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Tap-hidden chrome. display:none removes each element from layout, so the
+   page reflows and the reading position is kept by the existing anchor. */
+body[data-read-chrome="hidden"] #site-header,
+body[data-read-chrome="hidden"] .read-topbar,
+body[data-read-chrome="hidden"] .read-shell>.read-header,
+body[data-read-chrome="hidden"] .back-link,
+body[data-read-chrome="hidden"] .read-actions {
+    display: none;
+}
+
+/* Focus Mode hides the top bar as well as the bottom bar. */
+body[data-read-focus="on"] .read-topbar {
+    display: none;
+}
+
+/* 13.8 step 3: site header hidden on the reader page; top bar and bottom bar
+   fixed to the viewport edges while shown. */
+body[data-page="read"] #site-header {
+    position: sticky;
+    top: 0;
+    z-index: 55;
+}
+
+body[data-page="read"] .read-actions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    justify-content: center;
+    background: var(--rd-bg);
+    border-top: 1px solid var(--rd-border);
+}
+
+/* On phones, panels sit above the fixed bottom bar while the bars are shown. */
+@media (max-width: 639px) {
+    body[data-read-chrome="shown"] .read-shell .read-settings-panel,
+    body[data-read-chrome="shown"] .read-shell .read-chapters-panel {
+        bottom: 4.5rem;
+    }
+}
+
+/* 13.8 step 1: the progress line stays above the sticky header and top bar,
+   so it is visible while the chrome is shown. */
+.read-progress {
+    z-index: 65;
+}
+
+/* 13.8 step 2: panels clear the header, top bar and bottom bar while the
+   chrome is shown (R2, R3). Hidden chrome leaves panels at their normal place. */
+@media (min-width: 640px) {
+    body:not([data-read-chrome="hidden"]) .read-shell .read-settings-panel,
+    body:not([data-read-chrome="hidden"]) .read-shell .read-chapters-panel {
+        top: 6.5rem;
+        max-height: calc(100vh - 11rem);
+    }
+}
+
+/* Tablet: the settings side sheet also stops above the bottom bar. */
+@media (min-width: 640px) and (max-width: 1023px) {
+    body:not([data-read-chrome="hidden"]) .read-shell .read-settings-panel {
+        bottom: 4.5rem;
+    }
+}
+
+/* Reduced motion also covers the back link and the header, which sit
+   outside the shell rule (R4). */
+@media (prefers-reduced-motion: reduce) {
+    .back-link,
+    .read-shell > .read-header,
+    .read-shell > #read-notice {
+        transition-duration: 0.001ms !important;
+    }
+}

@@ -25,6 +25,7 @@ function getSafeReturnUrl() {
             "admin-book.html",
             "library.html",
             "book.html",
+            "read.html",
             "private-library.html"
         ];
 
@@ -68,7 +69,8 @@ async function boot() {
     if (access === "auth" && !auth.isAuthenticated()) {
         const next =
             encodeURIComponent(
-                window.location.pathname.split("/").pop()
+                window.location.pathname.split("/").pop() +
+                window.location.search
             );
 
         window.location.replace(`login.html?next=${next}`);
@@ -113,9 +115,10 @@ async function boot() {
         profile: "./pages/profile.js",
         "private-library": "./pages/private-library.js",
         admin: "./pages/admin.js",
-        "admin-book": "./pages/admin-book.js",
+        "admin-book": "./pages/admin-book.js?v=13.1.1",
         library: "./pages/library.js",
-        book: "./pages/book.js"
+        book: "./pages/book.js",
+        read: "./pages/read.js?v=13.8.9"
     };
 
     if (pageModules[page]) {

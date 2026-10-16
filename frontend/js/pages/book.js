@@ -135,6 +135,11 @@ function renderBook(book, authors, categories, chapters) {
     document.title = `${title} | Digital Library`;
     element("book-title").textContent = title;
 
+    const readLink = element("book-read");
+    if (readLink && Number.isSafeInteger(Number(book.book_id)) && Number(book.book_id) >= 1) {
+        readLink.href = `read.html?id=${encodeURIComponent(String(book.book_id))}`;
+    }
+
     const description = element("book-description");
     if (typeof book.description === "string" && book.description.trim()) {
         description.textContent = book.description;

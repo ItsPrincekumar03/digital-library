@@ -21,6 +21,15 @@ const updateBookRules = [
 const idParamRule = [param('id').isInt({ min: 1 }).withMessage('Invalid book ID')];
 const bookIdParamRule = [param('bookId').isInt({ min: 1 }).withMessage('Invalid book ID')];
 
+// Module 13.4 — extracted images are server-named 'p<page>-<seq>.png'.
+// Anything else (including path separators) is rejected at the route layer;
+// the service additionally validates the name against the book's metadata.
+const imageNameParamRule = [
+    param('imageName')
+        .matches(/^p\d+-\d+\.png$/)
+        .withMessage('Invalid image reference')
+];
+
 function handleValidation(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -33,4 +42,4 @@ function handleValidation(req, res, next) {
     next();
 }
 
-module.exports = { createBookRules, updateBookRules, idParamRule, bookIdParamRule, handleValidation };
+module.exports = { createBookRules, updateBookRules, idParamRule, bookIdParamRule, imageNameParamRule, handleValidation };

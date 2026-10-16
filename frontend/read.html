@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Read a book in the Digital Library.">
+    <title>Read | Digital Library</title>
+
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/read.css?v=13.8.9">
+
+    <script type="module" src="js/router.js"></script>
+</head>
+
+<body data-page="read" data-access="auth">
+    <div id="site-header"></div>
+
+    <main class="container page-main">
+        <p class="back-link">
+            <a id="read-back" href="library.html">← Back</a>
+        </p>
+
+        <div id="read-loading" class="loading-state" role="status" aria-live="polite">
+            Loading book…
+        </div>
+
+        <div id="read-error" class="form-message error-message" role="alert" hidden></div>
+
+        <article id="read-article" class="read-shell" hidden>
+            <div id="read-topbar" class="read-topbar">
+                <span id="read-topbar-chapter" class="read-topbar-chapter"></span>
+                <span id="read-topbar-page" class="read-topbar-page"></span>
+            </div>
+            <header class="read-header">
+                <p class="eyebrow">Now reading</p>
+                <h1 id="read-title"></h1>
+                <p id="read-meta" class="muted" hidden></p>
+            </header>
+
+            <div id="read-notice" class="read-notice" role="note" hidden></div>
+
+            <p id="read-storage-notice" class="read-storage-notice" role="status" hidden>
+                Reading preferences cannot be saved in this browser. Changes apply for this session only.
+            </p>
+
+            <div class="read-layout">
+                <div id="read-content" class="read-content" lang="en"></div>
+
+                <aside id="read-settings-panel" class="read-settings-panel" aria-label="Reading settings" hidden>
+                    <div class="read-settings-head">
+                        <h2 class="read-settings-title">Reading settings</h2>
+                        <button type="button" id="read-settings-close" class="read-settings-close">
+                            Close
+                        </button>
+                    </div>
+
+                    <fieldset class="read-fieldset">
+                        <legend class="read-legend">Preset</legend>
+                        <div class="read-radio-row">
+                            <label class="read-radio"><input type="radio" name="read-preset" value="comfortable" checked> Comfortable</label>
+                            <label class="read-radio"><input type="radio" name="read-preset" value="compact"> Compact</label>
+                            <label class="read-radio"><input type="radio" name="read-preset" value="largePrint"> Large print</label>
+                            <label class="read-radio"><input type="radio" name="read-preset" value="distractionFree"> Distraction-free</label>
+                            <label class="read-radio"><input type="radio" name="read-preset" value="custom" disabled> Custom</label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="read-fieldset">
+                        <legend class="read-legend">Theme</legend>
+                        <div class="read-radio-row">
+                            <label class="read-radio"><input type="radio" name="read-theme" value="light" checked> Light</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="dark"> Dark</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="sepia"> Sepia</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="warmCream"> Warm Cream</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="softGreen"> Soft Green</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="nightAmoled"> Night AMOLED</label>
+                            <label class="read-radio"><input type="radio" name="read-theme" value="eyeComfort"> Eye Comfort</label>
+                        </div>
+
+                        <div id="read-warmth-group" hidden>
+                            <label class="read-label" for="read-warmth">Warmth <output id="read-warmth-value" class="read-value">35%</output></label>
+                            <input type="range" id="read-warmth" min="0" max="100" step="1" value="35">
+                            <p class="read-help">An eye-comfort preference: a warmer reading surface you may prefer in low light.</p>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="read-fieldset">
+                        <legend class="read-legend">Typography</legend>
+
+                        <label class="read-label" for="read-font-family">Font family</label>
+                        <select id="read-font-family" class="read-select">
+                            <option value="serif">Serif</option>
+                            <option value="sans">Sans</option>
+                            <option value="dyslexia">Dyslexia-friendly</option>
+                        </select>
+
+                        <label class="read-label" for="read-font-size">Font size <output id="read-font-size-value" class="read-value">17px</output></label>
+                        <input type="range" id="read-font-size" min="14" max="26" step="1" value="17">
+
+                        <label class="read-label" for="read-line-height">Line height <output id="read-line-height-value" class="read-value">1.75</output></label>
+                        <input type="range" id="read-line-height" min="1.3" max="2.2" step="0.05" value="1.75">
+
+                        <label class="read-label" for="read-paragraph-gap">Paragraph spacing <output id="read-paragraph-gap-value" class="read-value">0.95em</output></label>
+                        <input type="range" id="read-paragraph-gap" min="0" max="2" step="0.1" value="0.95">
+
+                        <label class="read-label" for="read-letter-spacing">Letter spacing <output id="read-letter-spacing-value" class="read-value">0em</output></label>
+                        <input type="range" id="read-letter-spacing" min="-0.01" max="0.08" step="0.01" value="0">
+                    </fieldset>
+
+                    <fieldset class="read-fieldset">
+                        <legend class="read-legend">Layout</legend>
+
+                        <label class="read-label" for="read-reading-width">Reading width <output id="read-reading-width-value" class="read-value">120 rem (1920 px)</output></label>
+                        <input type="range" id="read-reading-width" min="28" max="120" step="1" value="120">
+                        <div class="read-radio-row">
+                            <button type="button" id="read-width-narrow" class="read-trigger" data-width="40" aria-label="Narrow width, 40 rem">Narrow</button>
+                            <button type="button" id="read-width-wide" class="read-trigger" data-width="96" aria-label="Wide width, 96 rem">Wide</button>
+                            <button type="button" id="read-width-full" class="read-trigger" data-width="120" aria-label="Full width, 120 rem">Full</button>
+                        </div>
+
+                        <label class="read-label" for="read-side-margin">Side margins <output id="read-side-margin-value" class="read-value">2.25rem</output></label>
+                        <input type="range" id="read-side-margin" min="0" max="6" step="0.25" value="2.25">
+
+                        <label class="read-label" for="read-block-padding">Top and bottom spacing <output id="read-block-padding-value" class="read-value">2rem</output></label>
+                        <input type="range" id="read-block-padding" min="0" max="4" step="0.5" value="2">
+
+                        <div class="read-radio-row" role="radiogroup" aria-label="Text alignment">
+                            <label class="read-radio"><input type="radio" name="read-alignment" value="left" checked> Left</label>
+                            <label class="read-radio"><input type="radio" name="read-alignment" value="justify"> Justified</label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="read-fieldset">
+                        <legend class="read-legend">Preview</legend>
+                        <div class="read-preview">
+                            <h3 class="read-preview-heading">Sample heading</h3>
+                            <p class="read-preview-paragraph">Reading settings apply live and keep your place in the document.</p>
+                        </div>
+                    </fieldset>
+
+                    <button type="button" id="read-restore-defaults" class="read-restore">
+                        Restore defaults
+                    </button>
+                </aside>
+            </div>
+
+            <div class="read-actions">
+                <button type="button" id="read-settings-trigger" class="read-trigger"
+                        aria-expanded="false" aria-controls="read-settings-panel">
+                    Reading settings
+                </button>
+                <button type="button" id="read-chapters-trigger" class="read-trigger"
+                        aria-expanded="false" aria-controls="read-chapters-panel">
+                    Chapters
+                </button>
+                <button type="button" id="read-focus-toggle" class="read-trigger" aria-pressed="false">
+                    Focus mode
+                </button>
+            </div>
+
+            <aside id="read-chapters-panel" class="read-chapters-panel" role="dialog" aria-labelledby="read-chapters-title" hidden>
+                <div class="read-chapters-head">
+                    <h2 class="read-chapters-title" id="read-chapters-title">Chapters</h2>
+                    <button type="button" id="read-chapters-close" class="read-chapters-close">
+                        Close
+                    </button>
+                </div>
+                <nav class="read-chapters-list" aria-label="Chapter list">
+                    <p class="read-chapters-empty" hidden>No chapter headings were found. Showing pages.</p>
+                </nav>
+                <div class="read-chapters-nav">
+                    <button type="button" id="read-chapters-prev">Previous</button>
+                    <button type="button" id="read-chapters-next">Next</button>
+                </div>
+            </aside>
+
+            <button type="button" id="read-focus-exit" class="read-focus-exit"
+                    aria-pressed="false" hidden>
+                Exit focus mode
+            </button>
+        </article>
+    </main>
+
+    <div class="read-progress" aria-hidden="true">
+        <div id="read-progress-bar" class="read-progress-bar"></div>
+    </div>
+
+    <div id="read-live" class="read-visually-hidden" role="status" aria-live="polite"></div>
+
+    <div id="site-footer"></div>
+</body>
+
+</html>

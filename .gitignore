@@ -15,3 +15,7 @@ gh.zip
 uploads/private/
 
 /uploads/public/
+
+# Local environment files contain real database passwords and secrets.
+.env
+backend/.env

@@ -1,4 +1,5 @@
 const bookRepository = require('../repositories/book.repository');
+const chapterRepository = require('../repositories/chapter.repository');
 const {
     deleteFileIfExists,
     deleteDirectoryIfExists,
@@ -23,7 +24,8 @@ const {
 const {
     PUBLIC_BOOK_STATUS,
     isAdmin,
-    isBookPubliclyReadable
+    isBookPubliclyReadable,
+    isChapterPubliclyReadable,
 } = require('../utils/bookVisibility');
 
 // Module 8.5 — PUBLIC LIBRARY RULES
@@ -35,9 +37,10 @@ const {
 //   * Private user PDFs (Module 12) will use their own table (user_pdf_books),
 //     NOT this books table.
 
-function notFound() {
-    const err = new Error('Book not found.');
+function notFound(message = 'This book does not exist.', code = 'BOOK_NOT_FOUND') {
+    const err = new Error(message);
     err.status = 404;
+    err.code = code;
     return err;
 }
 
@@ -129,11 +132,11 @@ async function getBookById(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
 
     if (!book) {
-        throw notFound();
+        throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
     }
 
     if (!isAdmin(requestingUser) && !isBookPubliclyReadable(book)) {
-        throw notFound();
+        throw notFound('This book is not published.', 'BOOK_NOT_PUBLISHED');
     }
 
     return book;
@@ -490,29 +493,135 @@ async function importBookPdf(bookId, requestingUser, file) {
     };
 }
 
-// Module 13.2 — reads the book's processed-text JSON. Reuses the book
+// Module 13.2 — reads the book's processed-text JSON, or synthesizes one from
+// published chapters if the book has chapter content. Reuses the book
 // visibility rule, so drafts stay hidden from normal users (404, not 403).
 async function getProcessedDocument(bookId, requestingUser) {
     const book = await getBookById(bookId, requestingUser);
 
-    if (!book.processed_content_path) {
-        const err = new Error('Processed text is not available for this book.');
-        err.status = 404;
-        throw err;
+    // 1. Processed PDF text exists
+    if (book.processed_content_path) {
+        const filePath = resolvePublicProcessedPath(
+            path.basename(book.processed_content_path)
+        );
+
+        let fileContent;
+        try {
+            fileContent = await fs.readFile(filePath, 'utf-8');
+        } catch (err) {
+            logger.error(`Processed content file missing for book ${bookId}: ${filePath}`, err);
+            const notFoundErr = new Error('The book content file is missing.');
+            notFoundErr.status = 404;
+            notFoundErr.code = 'CONTENT_FILE_MISSING';
+            throw notFoundErr;
+        }
+
+        try {
+            return JSON.parse(fileContent);
+        } catch (parseErr) {
+            logger.error(`Content processing failed for book ${bookId}: invalid JSON in ${filePath}`, parseErr);
+            const corruptErr = new Error('Content-processing failed for this book.');
+            corruptErr.status = 500;
+            corruptErr.expose = true;
+            corruptErr.code = 'CONTENT_PROCESSING_FAILED';
+            throw corruptErr;
+        }
     }
 
-    const filePath = resolvePublicProcessedPath(
-        path.basename(book.processed_content_path)
-    );
+    // 2. A PDF was uploaded, but text extraction was not completed / processed_content_path is null
+    if (book.pdf_stored_name) {
+        const pdfPath = resolvePublicPdfPath(book.pdf_stored_name);
+        let pdfExists = false;
+        try {
+            await fs.access(pdfPath);
+            pdfExists = true;
+        } catch {
+            pdfExists = false;
+        }
 
-    try {
-        return JSON.parse(await fs.readFile(filePath, 'utf-8'));
-    } catch (err) {
-        logger.error(`Processed text file missing for book ${bookId}.`, err);
-        const notFound = new Error('Processed text is not available for this book.');
-        notFound.status = 404;
-        throw notFound;
+        if (!pdfExists) {
+            logger.error(`PDF content file missing for book ${bookId}: ${pdfPath}`);
+            const missingErr = new Error('The book content file is missing.');
+            missingErr.status = 404;
+            missingErr.code = 'CONTENT_FILE_MISSING';
+            throw missingErr;
+        }
+
+        logger.error(`Content processing failed for book ${bookId}: PDF uploaded (${book.pdf_stored_name}) but text extraction was not completed.`);
+        const procErr = new Error('Content-processing failed for this book.');
+        procErr.status = 500;
+        procErr.expose = true;
+        procErr.code = 'CONTENT_PROCESSING_FAILED';
+        throw procErr;
     }
+
+    // 3. Chapter-based content
+    const allChapters = await chapterRepository.findByBook(bookId);
+    const readableChapters = isAdmin(requestingUser)
+        ? allChapters
+        : allChapters.filter(isChapterPubliclyReadable);
+
+    if (!readableChapters || readableChapters.length === 0) {
+        const noContentErr = new Error('This book has no readable content yet.');
+        noContentErr.status = 404;
+        noContentErr.code = 'NO_READABLE_CONTENT';
+        throw noContentErr;
+    }
+
+    let totalChars = 0;
+    const pages = readableChapters.map((ch, idx) => {
+        const pageNumber = idx + 1;
+        const chapterHeading = ch.title
+            ? `Chapter ${ch.chapter_number}: ${ch.title}`
+            : `Chapter ${ch.chapter_number}`;
+
+        const rawParagraphs = typeof ch.content === 'string'
+            ? ch.content
+                  .split(/\r?\n\r?\n|\r?\n/)
+                  .map((p) => p.trim())
+                  .filter(Boolean)
+            : [];
+
+        const blocks = [
+            { kind: 'heading', text: chapterHeading },
+            ...rawParagraphs.map((text) => ({ kind: 'paragraph', text }))
+        ];
+
+        const text = blocks.map((b) => b.text).join('\n\n');
+        totalChars += text.length;
+
+        return {
+            pageNumber,
+            chapterNumber: ch.chapter_number,
+            chapterTitle: ch.title || `Chapter ${ch.chapter_number}`,
+            text,
+            paragraphs: rawParagraphs,
+            blocks
+        };
+    });
+
+    return {
+        version: 1,
+        bookId: Number(bookId),
+        source: 'chapters',
+        sourceFile: book.title,
+        pageCount: pages.length,
+        textChars: totalChars,
+        extractedAt: new Date().toISOString(),
+        pages,
+        images: [],
+        imageStatus: {
+            status: 'not_attempted',
+            extractedCount: 0,
+            pageReferences: 0,
+            skippedCount: 0,
+            unsupportedCount: 0,
+            pageErrors: 0,
+            limitReached: false,
+            totalBytes: 0,
+            message: 'Image extraction was not attempted for chapter-based books.'
+        }
+    };
 }
 
 // PNG magic bytes. Served files are re-checked against this so a stored

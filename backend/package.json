@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "seed:dev": "node scripts/dev-seed.js"
+    "seed:dev": "node scripts/dev-seed.js",
+    "migrate": "node scripts/migrate.js",
+    "test": "node ../tests/publishing-workflow.test.js && node ../tests/reader-availability.test.js && node ../tests/archival-verification.js && node ../tests/api-categories-authors.test.js"
   },
   "keywords": [],
   "author": "",

@@ -8,9 +8,10 @@ const { isAdmin, isBookPubliclyReadable } = require('../utils/bookVisibility');
 // management, so only ADMIN may add or remove them. Reading them follows the
 // same visibility rule as the book itself.
 
-function notFound(message) {
+function notFound(message = 'Resource not found.', code = 'NOT_FOUND') {
     const err = new Error(message);
     err.status = 404;
+    err.code = code;
     return err;
 }
 function conflict(message) {
@@ -29,7 +30,7 @@ async function assertAdminAndBook(bookId, requestingUser) {
     if (!isAdmin(requestingUser)) throw forbidden('Only an admin can manage public book relationships.');
 
     const book = await bookRepository.findById(bookId);
-    if (!book) throw notFound('Book not found.');
+    if (!book) throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
 
     return book;
 }
@@ -37,8 +38,8 @@ async function assertAdminAndBook(bookId, requestingUser) {
 // Normal users may only read relationships of PUBLISHED books.
 async function assertBookReadable(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
-    if (!book) throw notFound('Book not found.');
-    if (!isAdmin(requestingUser) && !isBookPubliclyReadable(book)) throw notFound('Book not found.');
+    if (!book) throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
+    if (!isAdmin(requestingUser) && !isBookPubliclyReadable(book)) throw notFound('This book is not published.', 'BOOK_NOT_PUBLISHED');
     return book;
 }
 

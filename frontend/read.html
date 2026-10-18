@@ -11,9 +11,9 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/read.css?v=13.8.9">
+    <link rel="stylesheet" href="css/read.css?v=14.4.1">
 
-    <script type="module" src="js/router.js"></script>
+    <script type="module" src="js/router.js?v=14.4.1"></script>
 </head>
 
 <body data-page="read" data-access="auth">
@@ -50,117 +50,182 @@
             <div class="read-layout">
                 <div id="read-content" class="read-content" lang="en"></div>
 
-                <aside id="read-settings-panel" class="read-settings-panel" aria-label="Reading settings" hidden>
+                <aside id="read-settings-panel" class="read-settings-panel" aria-label="Settings" hidden>
                     <div class="read-settings-head">
-                        <h2 class="read-settings-title">Reading settings</h2>
+                        <h2 class="read-settings-title">Settings</h2>
                         <button type="button" id="read-settings-close" class="read-settings-close">
                             Close
                         </button>
                     </div>
 
-                    <fieldset class="read-fieldset">
-                        <legend class="read-legend">Preset</legend>
-                        <div class="read-radio-row">
-                            <label class="read-radio"><input type="radio" name="read-preset" value="comfortable" checked> Comfortable</label>
-                            <label class="read-radio"><input type="radio" name="read-preset" value="compact"> Compact</label>
-                            <label class="read-radio"><input type="radio" name="read-preset" value="largePrint"> Large print</label>
-                            <label class="read-radio"><input type="radio" name="read-preset" value="distractionFree"> Distraction-free</label>
-                            <label class="read-radio"><input type="radio" name="read-preset" value="custom" disabled> Custom</label>
-                        </div>
-                    </fieldset>
+                    <div class="read-tabs" role="tablist" aria-label="Settings sections">
+                        <button type="button" class="read-tab" data-tab="reading" role="tab"
+                                id="read-tab-btn-reading" aria-selected="true" aria-controls="read-tab-reading">
+                            Reading
+                        </button>
+                        <button type="button" class="read-tab" data-tab="typography" role="tab"
+                                id="read-tab-btn-typography" aria-selected="false" aria-controls="read-tab-typography">
+                            Typography
+                        </button>
+                        <button type="button" class="read-tab" data-tab="voice" role="tab"
+                                id="read-tab-btn-voice" aria-selected="false" aria-controls="read-tab-voice">
+                            Voice
+                        </button>
+                    </div>
 
-                    <fieldset class="read-fieldset">
-                        <legend class="read-legend">Theme</legend>
-                        <div class="read-radio-row">
-                            <label class="read-radio"><input type="radio" name="read-theme" value="light" checked> Light</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="dark"> Dark</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="sepia"> Sepia</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="warmCream"> Warm Cream</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="softGreen"> Soft Green</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="nightAmoled"> Night AMOLED</label>
-                            <label class="read-radio"><input type="radio" name="read-theme" value="eyeComfort"> Eye Comfort</label>
-                        </div>
+                    <div id="read-tab-reading" class="read-tab-panel" role="tabpanel" aria-labelledby="read-tab-btn-reading">
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Preset</legend>
+                            <div class="read-radio-row">
+                                <label class="read-radio"><input type="radio" name="read-preset" value="comfortable" checked> Comfortable</label>
+                                <label class="read-radio"><input type="radio" name="read-preset" value="compact"> Compact</label>
+                                <label class="read-radio"><input type="radio" name="read-preset" value="largePrint"> Large print</label>
+                                <label class="read-radio"><input type="radio" name="read-preset" value="distractionFree"> Distraction-free</label>
+                                <label class="read-radio"><input type="radio" name="read-preset" value="custom" disabled> Custom</label>
+                            </div>
+                        </fieldset>
 
-                        <div id="read-warmth-group" hidden>
-                            <label class="read-label" for="read-warmth">Warmth <output id="read-warmth-value" class="read-value">35%</output></label>
-                            <input type="range" id="read-warmth" min="0" max="100" step="1" value="35">
-                            <p class="read-help">An eye-comfort preference: a warmer reading surface you may prefer in low light.</p>
-                        </div>
-                    </fieldset>
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Theme</legend>
+                            <div class="read-radio-row">
+                                <label class="read-radio"><input type="radio" name="read-theme" value="light" checked> Light</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="dark"> Dark</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="sepia"> Sepia</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="warmCream"> Warm Cream</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="softGreen"> Soft Green</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="nightAmoled"> Night AMOLED</label>
+                                <label class="read-radio"><input type="radio" name="read-theme" value="eyeComfort"> Eye Comfort</label>
+                            </div>
 
-                    <fieldset class="read-fieldset">
-                        <legend class="read-legend">Typography</legend>
+                            <div id="read-warmth-group" hidden>
+                                <label class="read-label" for="read-warmth">Warmth <output id="read-warmth-value" class="read-value">35%</output></label>
+                                <input type="range" id="read-warmth" min="0" max="100" step="1" value="35">
+                                <p class="read-help">An eye-comfort preference: a warmer reading surface you may prefer in low light.</p>
+                            </div>
+                        </fieldset>
 
-                        <label class="read-label" for="read-font-family">Font family</label>
-                        <select id="read-font-family" class="read-select">
-                            <option value="serif">Serif</option>
-                            <option value="sans">Sans</option>
-                            <option value="dyslexia">Dyslexia-friendly</option>
-                        </select>
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Layout</legend>
 
-                        <label class="read-label" for="read-font-size">Font size <output id="read-font-size-value" class="read-value">17px</output></label>
-                        <input type="range" id="read-font-size" min="14" max="26" step="1" value="17">
+                            <label class="read-label" for="read-reading-width">Reading width <output id="read-reading-width-value" class="read-value">120 rem (1920 px)</output></label>
+                            <input type="range" id="read-reading-width" min="28" max="120" step="1" value="120">
+                            <div class="read-radio-row">
+                                <button type="button" id="read-width-narrow" class="read-trigger" data-width="40" aria-label="Narrow width, 40 rem">Narrow</button>
+                                <button type="button" id="read-width-wide" class="read-trigger" data-width="96" aria-label="Wide width, 96 rem">Wide</button>
+                                <button type="button" id="read-width-full" class="read-trigger" data-width="120" aria-label="Full width, 120 rem">Full</button>
+                            </div>
 
-                        <label class="read-label" for="read-line-height">Line height <output id="read-line-height-value" class="read-value">1.75</output></label>
-                        <input type="range" id="read-line-height" min="1.3" max="2.2" step="0.05" value="1.75">
+                            <label class="read-label" for="read-side-margin">Side margins <output id="read-side-margin-value" class="read-value">2.25rem</output></label>
+                            <input type="range" id="read-side-margin" min="0" max="6" step="0.25" value="2.25">
 
-                        <label class="read-label" for="read-paragraph-gap">Paragraph spacing <output id="read-paragraph-gap-value" class="read-value">0.95em</output></label>
-                        <input type="range" id="read-paragraph-gap" min="0" max="2" step="0.1" value="0.95">
+                            <label class="read-label" for="read-block-padding">Top and bottom spacing <output id="read-block-padding-value" class="read-value">2rem</output></label>
+                            <input type="range" id="read-block-padding" min="0" max="4" step="0.5" value="2">
 
-                        <label class="read-label" for="read-letter-spacing">Letter spacing <output id="read-letter-spacing-value" class="read-value">0em</output></label>
-                        <input type="range" id="read-letter-spacing" min="-0.01" max="0.08" step="0.01" value="0">
-                    </fieldset>
+                            <div class="read-radio-row" role="radiogroup" aria-label="Text alignment">
+                                <label class="read-radio"><input type="radio" name="read-alignment" value="left" checked> Left</label>
+                                <label class="read-radio"><input type="radio" name="read-alignment" value="justify"> Justified</label>
+                            </div>
+                        </fieldset>
 
-                    <fieldset class="read-fieldset">
-                        <legend class="read-legend">Layout</legend>
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Preview</legend>
+                            <div class="read-preview">
+                                <h3 class="read-preview-heading">Sample heading</h3>
+                                <p class="read-preview-paragraph">Reading settings apply live and keep your place in the document.</p>
+                            </div>
+                        </fieldset>
 
-                        <label class="read-label" for="read-reading-width">Reading width <output id="read-reading-width-value" class="read-value">120 rem (1920 px)</output></label>
-                        <input type="range" id="read-reading-width" min="28" max="120" step="1" value="120">
-                        <div class="read-radio-row">
-                            <button type="button" id="read-width-narrow" class="read-trigger" data-width="40" aria-label="Narrow width, 40 rem">Narrow</button>
-                            <button type="button" id="read-width-wide" class="read-trigger" data-width="96" aria-label="Wide width, 96 rem">Wide</button>
-                            <button type="button" id="read-width-full" class="read-trigger" data-width="120" aria-label="Full width, 120 rem">Full</button>
-                        </div>
+                        <button type="button" id="read-restore-defaults" class="read-restore">
+                            Restore defaults
+                        </button>
+                    </div>
 
-                        <label class="read-label" for="read-side-margin">Side margins <output id="read-side-margin-value" class="read-value">2.25rem</output></label>
-                        <input type="range" id="read-side-margin" min="0" max="6" step="0.25" value="2.25">
+                    <div id="read-tab-typography" class="read-tab-panel" role="tabpanel" aria-labelledby="read-tab-btn-typography" hidden>
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Typography</legend>
 
-                        <label class="read-label" for="read-block-padding">Top and bottom spacing <output id="read-block-padding-value" class="read-value">2rem</output></label>
-                        <input type="range" id="read-block-padding" min="0" max="4" step="0.5" value="2">
+                            <label class="read-label" for="read-font-family">Font family</label>
+                            <select id="read-font-family" class="read-select">
+                                <option value="serif">Serif</option>
+                                <option value="sans">Sans</option>
+                                <option value="dyslexia">Dyslexia-friendly</option>
+                            </select>
 
-                        <div class="read-radio-row" role="radiogroup" aria-label="Text alignment">
-                            <label class="read-radio"><input type="radio" name="read-alignment" value="left" checked> Left</label>
-                            <label class="read-radio"><input type="radio" name="read-alignment" value="justify"> Justified</label>
-                        </div>
-                    </fieldset>
+                            <label class="read-label" for="read-font-size">Font size <output id="read-font-size-value" class="read-value">17px</output></label>
+                            <input type="range" id="read-font-size" min="14" max="26" step="1" value="17">
 
-                    <fieldset class="read-fieldset">
-                        <legend class="read-legend">Preview</legend>
-                        <div class="read-preview">
-                            <h3 class="read-preview-heading">Sample heading</h3>
-                            <p class="read-preview-paragraph">Reading settings apply live and keep your place in the document.</p>
-                        </div>
-                    </fieldset>
+                            <label class="read-label" for="read-line-height">Line height <output id="read-line-height-value" class="read-value">1.75</output></label>
+                            <input type="range" id="read-line-height" min="1.3" max="2.2" step="0.05" value="1.75">
 
-                    <button type="button" id="read-restore-defaults" class="read-restore">
-                        Restore defaults
-                    </button>
+                            <label class="read-label" for="read-paragraph-gap">Paragraph spacing <output id="read-paragraph-gap-value" class="read-value">0.95em</output></label>
+                            <input type="range" id="read-paragraph-gap" min="0" max="2" step="0.1" value="0.95">
+
+                            <label class="read-label" for="read-letter-spacing">Letter spacing <output id="read-letter-spacing-value" class="read-value">0em</output></label>
+                            <input type="range" id="read-letter-spacing" min="-0.01" max="0.08" step="0.01" value="0">
+                        </fieldset>
+                    </div>
+
+                    <div id="read-tab-voice" class="read-tab-panel" role="tabpanel" aria-labelledby="read-tab-btn-voice" hidden>
+                        <fieldset class="read-fieldset">
+                            <legend class="read-legend">Voice settings</legend>
+
+                            <label class="read-label" for="read-audio-voice">Voice</label>
+                            <select id="read-audio-voice" class="read-select">
+                                <option value="">Browser default</option>
+                            </select>
+
+                            <label class="read-label" for="read-audio-speed">Speed <output id="read-audio-speed-value" class="read-value">1×</output></label>
+                            <input type="range" id="read-audio-speed" min="0.5" max="4" step="0.25" value="1">
+
+                            <label class="read-label" for="read-audio-pitch">Pitch <output id="read-audio-pitch-value" class="read-value">1</output></label>
+                            <input type="range" id="read-audio-pitch" min="0" max="2" step="0.1" value="1">
+
+                            <p id="read-audio-note" class="read-help">Changes apply from the next sentence. Voices depend on your browser and device; some ignore pitch, and speeds above 2× may not be honoured.</p>
+                        </fieldset>
+                    </div>
                 </aside>
             </div>
 
-            <div class="read-actions">
-                <button type="button" id="read-settings-trigger" class="read-trigger"
-                        aria-expanded="false" aria-controls="read-settings-panel">
-                    Reading settings
+            <div class="read-actions" data-audio-mode="normal">
+                <button type="button" id="read-audio-open" class="read-trigger read-icon-btn"
+                        aria-label="Open audio playback controls" title="Read aloud">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
                 </button>
-                <button type="button" id="read-chapters-trigger" class="read-trigger"
+                <button type="button" id="read-chapters-trigger" class="read-trigger read-icon-btn"
+                        aria-label="Chapters" title="Chapters"
                         aria-expanded="false" aria-controls="read-chapters-panel">
-                    Chapters
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
                 </button>
-                <button type="button" id="read-focus-toggle" class="read-trigger" aria-pressed="false">
-                    Focus mode
+                <button type="button" id="read-settings-trigger" class="read-trigger read-icon-btn"
+                        aria-label="Settings" title="Settings"
+                        aria-expanded="false" aria-controls="read-settings-panel">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                </button>
+                <button type="button" id="read-focus-toggle" class="read-trigger read-icon-btn"
+                        aria-label="Focus mode" title="Focus mode" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                </button>
+
+                <button type="button" id="read-audio-prev" class="read-trigger read-icon-btn read-audio-pb"
+                        aria-label="Previous sentence" title="Previous sentence" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button type="button" id="read-audio-play" class="read-trigger read-icon-btn read-audio-pb"
+                        data-mode="play" aria-label="Play" title="Play" hidden>
+                    <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button type="button" id="read-audio-next" class="read-trigger read-icon-btn read-audio-pb"
+                        aria-label="Next sentence" title="Next sentence" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+                <button type="button" id="read-audio-stop" class="read-trigger read-icon-btn read-audio-pb"
+                        aria-label="Stop and close playback controls" title="Stop" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6h12v12H6z"/></svg>
                 </button>
             </div>
+
+            <span id="read-audio-live" class="read-visually-hidden" role="status" aria-live="polite"></span>
 
             <aside id="read-chapters-panel" class="read-chapters-panel" role="dialog" aria-labelledby="read-chapters-title" hidden>
                 <div class="read-chapters-head">
@@ -182,6 +247,7 @@
                     aria-pressed="false" hidden>
                 Exit focus mode
             </button>
+
         </article>
     </main>
 

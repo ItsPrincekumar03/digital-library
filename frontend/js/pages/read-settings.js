@@ -591,11 +591,20 @@ function syncControls() {
     setRange("read-warmth", settings.warmth);
     updateWidthReadout();
 
-    const warmthReadout = element("read-warmth-value");
+    const setOutput = (id, text) => {
+        const out = element(id);
+        if (out) {
+            out.textContent = text;
+        }
+    };
 
-    if (warmthReadout) {
-        warmthReadout.textContent = `${settings.warmth}%`;
-    }
+    setOutput("read-font-size-value", `${settings.fontSize}px`);
+    setOutput("read-line-height-value", String(settings.lineHeight));
+    setOutput("read-paragraph-gap-value", `${settings.paragraphGap}em`);
+    setOutput("read-side-margin-value", `${settings.sideMargin}rem`);
+    setOutput("read-block-padding-value", `${settings.blockPadding}rem`);
+    setOutput("read-letter-spacing-value", `${settings.letterSpacing}em`);
+    setOutput("read-warmth-value", `${settings.warmth}%`);
 
     syncWarmthVisibility();
 
@@ -1153,4 +1162,31 @@ function bindControls() {
 
         persist();
     });
+
+    // Settings tabs (Reading / Typography / Voice)
+    // Wired here so tab switching is completely self-contained within read-settings.js.
+    const tabs = state.panel ? [...state.panel.querySelectorAll(".read-tab")] : [];
+    const tabPanels = {
+        reading: element("read-tab-reading"),
+        typography: element("read-tab-typography"),
+        voice: element("read-tab-voice")
+    };
+
+    function activateTab(key) {
+        for (const tab of tabs) {
+            tab.setAttribute("aria-selected", String(tab.dataset.tab === key));
+        }
+
+        for (const [name, panel] of Object.entries(tabPanels)) {
+            if (panel) {
+                panel.hidden = name !== key;
+            }
+        }
+    }
+
+    for (const tab of tabs) {
+        bind(tab, "click", () => activateTab(tab.dataset.tab));
+    }
+
+    activateTab("reading");
 }

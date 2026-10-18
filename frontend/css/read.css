@@ -750,47 +750,50 @@ body[data-read-focus="on"] .read-actions {
 
 .read-h2 {
     margin: 0.5rem 0 0.85rem;
-    font-size: 1.4rem;
+    font-size: calc(var(--rd-font-size, 17px) * 1.35);
     line-height: 1.35;
     overflow-wrap: anywhere;
 }
 
 .read-h3 {
     margin: 0.4rem 0 0.7rem;
-    font-size: 1.12rem;
+    font-size: calc(var(--rd-font-size, 17px) * 1.15);
     line-height: 1.4;
     overflow-wrap: anywhere;
 }
 
 .read-paragraph {
-    margin-bottom: 0.95rem;
-    font-size: 1.0625rem;
-    line-height: 1.75;
+    margin-bottom: var(--rd-paragraph-gap, 0.95em);
+    font-size: var(--rd-font-size, 17px);
+    line-height: var(--rd-line-height, 1.75);
+    letter-spacing: var(--rd-letter-spacing, 0em);
     overflow-wrap: anywhere;
 }
 
 .read-list {
-    margin: 0 0 0.95rem 1.25rem;
+    margin: 0 0 var(--rd-paragraph-gap, 0.95em) 1.25rem;
     padding: 0;
 }
 
 .read-list-item {
     margin-bottom: 0.45rem;
-    font-size: 1.0625rem;
-    line-height: 1.7;
+    font-size: var(--rd-font-size, 17px);
+    line-height: var(--rd-line-height, 1.75);
+    letter-spacing: var(--rd-letter-spacing, 0em);
     overflow-wrap: anywhere;
 }
 
 .read-toc {
     margin-bottom: 0.4rem;
-    font-size: 0.98rem;
-    line-height: 1.65;
+    font-size: var(--rd-font-size, 17px);
+    line-height: var(--rd-line-height, 1.75);
+    letter-spacing: var(--rd-letter-spacing, 0em);
     overflow-wrap: anywhere;
 }
 
 .read-caption {
     margin-bottom: 0.9rem;
-    font-size: 0.9rem;
+    font-size: calc(var(--rd-font-size, 17px) * 0.85);
     font-style: italic;
     line-height: 1.6;
     overflow-wrap: anywhere;
@@ -1050,8 +1053,8 @@ body[data-page="read"] .read-actions {
     right: 0;
     z-index: 60;
     margin: 0;
-    padding: 0.5rem 0.75rem;
-    justify-content: center;
+    padding: 0.5rem 1rem;
+    justify-content: space-between;
     background: var(--rd-bg);
     border-top: 1px solid var(--rd-border);
 }
@@ -1096,3 +1099,177 @@ body[data-page="read"] .read-actions {
         transition-duration: 0.001ms !important;
     }
 }
+
+/* ---- Module 14.1: icons and playback mode inside the existing bottom bar ---- */
+.read-actions [hidden] {
+    display: none !important;
+}
+
+/* Same height the old text buttons produced (font-size × line-height + padding + border),
+   so the bar keeps its exact size in both modes and at every line-height setting. */
+.read-actions .read-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    height: calc(0.86rem * var(--rd-line-height, 1.75) + 0.9rem + 2px);
+    padding: 0 0.6rem;
+}
+
+.read-actions .read-icon-btn svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: currentColor;
+    flex: none;
+    pointer-events: none;
+}
+
+.read-actions .read-icon-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.read-icon-btn .icon-pause {
+    display: none;
+}
+
+.read-icon-btn[data-mode="pause"] .icon-play {
+    display: none;
+}
+
+.read-icon-btn[data-mode="pause"] .icon-pause {
+    display: block;
+}
+
+.read-icon-btn[data-state="error"] {
+    border-color: #b42318;
+    color: #b42318;
+}
+
+/* Fade when the buttons swap; the bar itself does not move. */
+.read-actions[data-audio-mode="playback"] .read-audio-pb {
+    animation: read-audio-fade 150ms ease-out;
+}
+
+@keyframes read-audio-fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Playback controls stay reachable if the reader hides its chrome by tapping the text. */
+body[data-read-chrome="hidden"][data-audio-mode="playback"]:not([data-read-focus="on"]) .read-actions {
+    display: flex;
+}
+
+/* Sentence highlight (CSS Custom Highlight API), readable in every reader theme. */
+::highlight(tts-sentence) {
+    background-color: #fde68a;
+    color: #1d2939;
+}
+
+.read-shell[data-read-theme="dark"] ::highlight(tts-sentence) {
+    background-color: #5a4a10;
+    color: #ffffff;
+}
+
+.read-shell[data-read-theme="sepia"] ::highlight(tts-sentence) {
+    background-color: #e8c872;
+    color: #2c2317;
+}
+
+.read-shell[data-read-theme="warmCream"] ::highlight(tts-sentence) {
+    background-color: #fcd97a;
+    color: #1c1917;
+}
+
+.read-shell[data-read-theme="softGreen"] ::highlight(tts-sentence) {
+    background-color: #86efac;
+    color: #052e16;
+}
+
+.read-shell[data-read-theme="nightAmoled"] ::highlight(tts-sentence) {
+    background-color: #5a4600;
+    color: #ffffff;
+}
+
+.read-shell[data-read-theme="eyeComfort"] ::highlight(tts-sentence) {
+    background-color: #e9c46a;
+    color: #2a241c;
+}
+
+/* Fallback when the Highlight API is missing: the whole current block. */
+.read-shell [data-tts-active="true"] {
+    background: var(--rd-badge-bg);
+    box-shadow: -0.35rem 0 0 var(--rd-focus);
+    border-radius: 4px;
+}
+
+/* ---- Module 14.1 refinement: icon sizing + playback button order ---- */
+
+/* Each icon button gets equal flex growth so the four items always
+   fill the bar symmetrically, and a comfortable touch-target max-width. */
+.read-actions .read-icon-btn {
+    flex: 1 1 0;
+    max-width: 5rem;
+}
+
+@media (max-width: 480px) {
+    .read-actions .read-icon-btn {
+        min-width: 2.75rem;
+    }
+}
+
+/* Playback mode: CSS flex order places the buttons in the spec sequence
+   (Prev → Play/Pause → Stop → Next) without changing the HTML order.
+   space-between is already set on the bar; the four items spread naturally. */
+.read-actions[data-audio-mode="playback"] #read-audio-prev { order: 1; }
+.read-actions[data-audio-mode="playback"] #read-audio-play { order: 2; }
+.read-actions[data-audio-mode="playback"] #read-audio-stop { order: 3; }
+.read-actions[data-audio-mode="playback"] #read-audio-next { order: 4; }
+
+/* ---- Module 14.2: settings tab bar (Android-style: horizontal tabs,
+   content panel beneath), acting as the bottom sheet's internal header ---- */
+.read-settings-panel .read-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 0 0.85rem;
+    padding-top: 0.1rem;
+    background: var(--rd-controls);
+    border-bottom: 1px solid var(--rd-border);
+}
+
+.read-settings-panel .read-tab {
+    flex: 1;
+    min-height: 40px;
+    padding: 0.5rem 0.4rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--rd-muted);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.read-settings-panel .read-tab:hover {
+    color: var(--rd-control-text);
+}
+
+.read-settings-panel .read-tab[aria-selected="true"] {
+    color: var(--rd-control-text);
+    border-bottom-color: var(--rd-focus);
+}
+
+.read-settings-panel .read-tab-panel[hidden] {
+    display: none;
+}
+

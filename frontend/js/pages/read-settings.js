@@ -1184,8 +1184,22 @@ function bindControls() {
         }
     }
 
-    for (const tab of tabs) {
+    for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i];
         bind(tab, "click", () => activateTab(tab.dataset.tab));
+        bind(tab, "keydown", (e) => {
+            if (e.key === "ArrowRight") {
+                e.preventDefault();
+                const next = tabs[(i + 1) % tabs.length];
+                next.focus();
+                activateTab(next.dataset.tab);
+            } else if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                const prev = tabs[(i - 1 + tabs.length) % tabs.length];
+                prev.focus();
+                activateTab(prev.dataset.tab);
+            }
+        });
     }
 
     activateTab("reading");

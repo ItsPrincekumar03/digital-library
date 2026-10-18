@@ -104,10 +104,10 @@ function pushSpan(out, text, start, end) {
 }
 
 // Common abbreviations that should not end a sentence on their own.
-// Conservative, short list only — anything not here still splits as before.
 const ABBREVIATIONS = new Set([
     "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "capt", "gen", "col",
-    "lt", "cmdr", "rev", "hon", "no", "vol", "fig", "approx", "etc", "vs", "al"
+    "lt", "cmdr", "rev", "hon", "no", "vol", "fig", "approx", "etc", "vs", "al",
+    "co", "inc", "ltd", "dept", "univ", "eg", "ie", "bros"
 ]);
 
 function wordBefore(text, index) {
@@ -123,10 +123,11 @@ function sentenceSpans(text) {
 
     while ((match = end.exec(text)) !== null) {
         const stop = match.index + match[0].length;
+        const word = wordBefore(text, match.index);
 
-        // A lone period right after a known abbreviation is usually not a
-        // sentence end (e.g. "Dr. Smith"); keep accumulating instead.
-        if (match[0] === "." && ABBREVIATIONS.has(wordBefore(text, match.index))) {
+        // A lone period right after a known abbreviation or a single initial ("J. K. Rowling")
+        // is not treated as a sentence end.
+        if (match[0] === "." && (word.length === 1 || ABBREVIATIONS.has(word))) {
             continue;
         }
 

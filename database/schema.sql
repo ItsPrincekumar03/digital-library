@@ -55,9 +55,11 @@ CREATE TABLE authors (
     author_id   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(150) NOT NULL,
     bio         TEXT NULL,
+    is_archived TINYINT(1) NOT NULL DEFAULT 0,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    INDEX idx_authors_name (name)
+    INDEX idx_authors_name (name),
+    INDEX idx_authors_is_archived (is_archived)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -67,31 +69,41 @@ CREATE TABLE categories (
     category_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
     description VARCHAR(255) NULL,
+    is_archived TINYINT(1) NOT NULL DEFAULT 0,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uq_categories_name UNIQUE (name)
+    CONSTRAINT uq_categories_name UNIQUE (name),
+    INDEX idx_categories_is_archived (is_archived)
 ) ENGINE=InnoDB;
 
 -- =====================================================
 -- 5. books
 -- =====================================================
 CREATE TABLE books (
-    book_id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    owner_id      BIGINT UNSIGNED NOT NULL,
-    title         VARCHAR(255) NOT NULL,
-    description   TEXT NULL,
-    cover_image   VARCHAR(255) NULL,
-    status        ENUM(
-                      'DRAFT',
-                      'PENDING_REVIEW',
-                      'APPROVED',
-                      'REJECTED',
-                      'PUBLISHED',
-                      'ARCHIVED'
-                  ) NOT NULL DEFAULT 'DRAFT',
-    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                     ON UPDATE CURRENT_TIMESTAMP,
+    book_id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    owner_id               BIGINT UNSIGNED NOT NULL,
+    title                  VARCHAR(255) NOT NULL,
+    description            TEXT NULL,
+    cover_image            VARCHAR(255) NULL,
+    cover_path             VARCHAR(255) NULL,
+    publication_date       DATE NULL,
+    pdf_original_name      VARCHAR(255) NULL,
+    pdf_stored_name        VARCHAR(255) NULL,
+    pdf_size               BIGINT UNSIGNED NULL,
+    pdf_uploaded_at        DATETIME NULL,
+    pdf_path               VARCHAR(500) NULL,
+    processed_content_path VARCHAR(255) NULL,
+    status                 ENUM(
+                               'DRAFT',
+                               'PENDING_REVIEW',
+                               'APPROVED',
+                               'REJECTED',
+                               'PUBLISHED',
+                               'ARCHIVED'
+                           ) NOT NULL DEFAULT 'DRAFT',
+    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_books_owner
         FOREIGN KEY (owner_id) REFERENCES users(user_id)
@@ -99,7 +111,8 @@ CREATE TABLE books (
 
     INDEX idx_books_owner_id (owner_id),
     INDEX idx_books_status (status),
-    INDEX idx_books_title (title)
+    INDEX idx_books_title (title),
+    INDEX idx_books_pdf_stored_name (pdf_stored_name)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -366,6 +379,34 @@ CREATE TABLE audit_logs (
     INDEX idx_audit_logs_user_id (user_id),
     INDEX idx_audit_logs_action (action),
     INDEX idx_audit_logs_created_at (created_at)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- 16. private_library_files
+-- =====================================================
+CREATE TABLE IF NOT EXISTS private_library_files (
+    private_file_id    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    owner_id           BIGINT UNSIGNED NOT NULL,
+    title              VARCHAR(255) NOT NULL,
+    description        VARCHAR(1000) NULL,
+    original_file_name VARCHAR(255) NOT NULL,
+    stored_file_name   VARCHAR(255) NOT NULL,
+    storage_path       VARCHAR(500) NOT NULL,
+    mime_type          VARCHAR(100) NOT NULL,
+    file_size          BIGINT UNSIGNED NOT NULL,
+    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                          ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_private_library_files_owner
+        FOREIGN KEY (owner_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+
+    CONSTRAINT uq_private_library_files_stored_name
+        UNIQUE (stored_file_name),
+
+    INDEX idx_private_library_files_owner_id (owner_id),
+    INDEX idx_private_library_files_created_at (created_at)
 ) ENGINE=InnoDB;
 
 SET FOREIGN_KEY_CHECKS = 1;

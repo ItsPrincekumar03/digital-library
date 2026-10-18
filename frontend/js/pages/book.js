@@ -19,8 +19,34 @@ function friendlyError(error) {
         return "Your account does not have access to this book.";
     }
 
+    const code = error.details?.code;
+    const message = error.message;
+
+    if (code === "BOOK_NOT_FOUND" || message === "This book does not exist." || message === "Book not found.") {
+        return "This book does not exist.";
+    }
+
+    if (code === "BOOK_NOT_PUBLISHED" || message === "This book is not published.") {
+        return "This book is not published.";
+    }
+
+    if (code === "NO_READABLE_CONTENT" || message === "This book has no readable content yet.") {
+        return "This book has no readable content yet.";
+    }
+
+    if (code === "CONTENT_FILE_MISSING" || message === "The book content file is missing.") {
+        return "The book content file is missing.";
+    }
+
+    if (code === "CONTENT_PROCESSING_FAILED" || message === "Content-processing failed for this book.") {
+        return "Content-processing failed for this book.";
+    }
+
     if (error.status === 404) {
-        return "This book is unavailable. It may not be published or may no longer exist.";
+        if (typeof message === "string" && message.trim() && !message.startsWith("Request failed")) {
+            return message;
+        }
+        return "This book does not exist.";
     }
 
     if (error.status === 429) {

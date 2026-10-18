@@ -9,9 +9,10 @@ const {
 // Module 8.5: chapters belong to PUBLIC library books, so they are ADMIN-managed.
 // Normal users can only read PUBLISHED chapters of PUBLISHED books.
 
-function notFound(message) {
+function notFound(message = 'Resource not found.', code = 'NOT_FOUND') {
     const err = new Error(message);
     err.status = 404;
+    err.code = code;
     return err;
 }
 function conflict(message) {
@@ -30,7 +31,7 @@ async function assertAdminAndBook(bookId, requestingUser) {
     if (!isAdmin(requestingUser)) throw forbidden('Only an admin can manage chapters of public books.');
 
     const book = await bookRepository.findById(bookId);
-    if (!book) throw notFound('Book not found.');
+    if (!book) throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
 
     return book;
 }
@@ -47,25 +48,31 @@ async function createChapter(bookId, requestingUser, { chapterNumber, title, con
 
 async function getChaptersForBook(bookId, requestingUser) {
     const book = await bookRepository.findById(bookId);
-    if (!book) throw notFound('Book not found.');
+    if (!book) throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
 
     const chapters = await chapterRepository.findByBook(bookId);
     if (isAdmin(requestingUser)) return chapters;
 
     // Normal user: the book must be public, and only published chapters are returned.
-    if (!isBookPubliclyReadable(book)) throw notFound('Book not found.');
+    if (!isBookPubliclyReadable(book)) throw notFound('This book is not published.', 'BOOK_NOT_PUBLISHED');
     return chapters.filter(isChapterPubliclyReadable);
 }
 
 async function getChapterById(chapterId, requestingUser) {
     const chapter = await chapterRepository.findById(chapterId);
-    if (!chapter) throw notFound('Chapter not found.');
+    if (!chapter) throw notFound('Chapter not found.', 'CHAPTER_NOT_FOUND');
 
     if (isAdmin(requestingUser)) return chapter;
 
     const book = await bookRepository.findById(chapter.book_id);
-    if (!isBookPubliclyReadable(book) || !isChapterPubliclyReadable(chapter)) {
-        throw notFound('Chapter not found.');
+    if (!book) {
+        throw notFound('This book does not exist.', 'BOOK_NOT_FOUND');
+    }
+    if (!isBookPubliclyReadable(book)) {
+        throw notFound('This book is not published.', 'BOOK_NOT_PUBLISHED');
+    }
+    if (!isChapterPubliclyReadable(chapter)) {
+        throw notFound('Chapter not found.', 'CHAPTER_NOT_FOUND');
     }
     return chapter;
 }

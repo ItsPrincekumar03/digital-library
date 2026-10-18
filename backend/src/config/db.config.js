@@ -1,11 +1,11 @@
-require('dotenv').config();
+require('./env');
 
 // Central place for all DB-related config values.
 // Nothing here is hardcoded — everything comes from .env
 module.exports = {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : '',
     database: process.env.DB_NAME,
 };

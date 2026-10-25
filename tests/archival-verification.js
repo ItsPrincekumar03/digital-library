@@ -7,13 +7,14 @@ async function testArchival() {
 
     let authorAId, authorBId, catAId, catBId;
     try {
-        // 1. Create authors
-        authorAId = await authorRepo.create({ name: 'Zane Grey', bio: 'Western author' });
-        authorBId = await authorRepo.create({ name: 'Arthur Conan Doyle', bio: 'Mystery author' });
+        const stamp = Date.now();
+        // 1. Create authors with unique names preserving alphabetical order
+        authorAId = await authorRepo.create({ name: `Zane Grey ${stamp}`, bio: 'Western author' });
+        authorBId = await authorRepo.create({ name: `Arthur Conan Doyle ${stamp}`, bio: 'Mystery author' });
 
-        // 2. Create categories
-        catAId = await categoryRepo.create({ name: 'Science Fiction', description: 'Sci-Fi books' });
-        catBId = await categoryRepo.create({ name: 'Adventure', description: 'Adventure books' });
+        // 2. Create categories with unique names preserving alphabetical order
+        catAId = await categoryRepo.create({ name: `Science Fiction ${stamp}`, description: 'Sci-Fi books' });
+        catBId = await categoryRepo.create({ name: `Adventure ${stamp}`, description: 'Adventure books' });
 
         // 3. Test findAll (should be sorted by name and include both active records)
         const authorsBefore = await authorRepo.findAll();

@@ -103,6 +103,7 @@ export const auth = {
                 error.status === 401
             ) {
                 currentUser = null;
+                api.clearToken();
             } else {
                 throw error;
             }
@@ -134,12 +135,37 @@ export const auth = {
     },
 
     async login(credentials) {
-        await api.post(
+        const payload = await api.post(
             API_ENDPOINTS.login,
             credentials
         );
 
+        const token = payload?.data?.token || payload?.token;
+        if (token) {
+            api.setToken(token);
+        }
+
+        const userFromLogin = normalizeUser(extractUser(payload));
+        if (userFromLogin) {
+            currentUser = userFromLogin;
+        }
+
         initialized = false;
+
+        try {
+            const refreshed = await this.refresh();
+            if (refreshed) {
+                return refreshed;
+            }
+        } catch (_) {
+            // If the immediate verification request has a transient issue,
+            // fall back to the user object directly returned by successful login.
+        }
+
+        if (currentUser) {
+            initialized = true;
+            return currentUser;
+        }
 
         return this.refresh();
     },
@@ -158,6 +184,7 @@ export const auth = {
                 {}
             );
         } finally {
+            api.clearToken();
             currentUser = null;
             initialized = true;
         }

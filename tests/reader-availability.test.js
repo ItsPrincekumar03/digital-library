@@ -1,8 +1,23 @@
+if (process.env.TEST_DB_NAME !== 'digital_library_test') {
+    console.error(
+        'Test blocked: TEST_DB_NAME must equal digital_library_test.'
+    );
+    process.exit(1);
+}
+
+process.env.DB_NAME = process.env.TEST_DB_NAME;
 const { pool } = require('../backend/src/config/database');
 const fs = require('fs/promises');
 const path = require('path');
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.BASE_URL;
+
+if (BASE_URL !== 'http://localhost:5001') {
+    console.error(
+        'Test blocked: BASE_URL must be http://localhost:5001.'
+    );
+    process.exit(1);
+}
 
 async function request(method, urlPath, { cookie = '', body = null } = {}) {
     const headers = {};
@@ -33,6 +48,7 @@ async function request(method, urlPath, { cookie = '', body = null } = {}) {
 
 let passed = 0;
 let failed = 0;
+let cleanupFailed = false;
 
 function assert(description, condition, actual) {
     if (condition) {
@@ -41,6 +57,20 @@ function assert(description, condition, actual) {
     } else {
         console.error(`[FAIL] ${description} -> got:`, actual);
         failed++;
+    }
+}
+
+async function cleanupStep(label, action) {
+    try {
+        await action();
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            console.log(`[CLEANUP] Already absent: ${label}`);
+            return;
+        }
+
+        cleanupFailed = true;
+        console.error(`[CLEANUP] ${label} failed:`, err.message);
     }
 }
 
@@ -53,6 +83,7 @@ async function run() {
     const stamp = Date.now();
     const userEmail = `reader_test_${stamp}@example.com`;
 
+    let corruptFilePath = null;
     try {
         // 1. Log in admin
         const adminLogin = await request('POST', '/api/auth/login', {
@@ -131,7 +162,7 @@ async function run() {
         const publicDir = path.join(__dirname, '..', 'uploads', 'public');
         await fs.mkdir(publicDir, { recursive: true });
         const corruptFileName = `corrupted-${stamp}.processed.json`;
-        const corruptFilePath = path.join(publicDir, corruptFileName);
+        corruptFilePath = path.join(publicDir, corruptFileName);
         await fs.writeFile(corruptFilePath, '{ invalid json content !!!', 'utf-8');
 
         await pool.query('UPDATE books SET processed_content_path = ? WHERE book_id = ?', [
@@ -143,8 +174,6 @@ async function run() {
         assert('Corrupted content file has code CONTENT_PROCESSING_FAILED', corruptRes.json?.code === 'CONTENT_PROCESSING_FAILED', corruptRes.json?.code);
         assert('Corrupted content file message is accurate', corruptRes.json?.message === 'Content-processing failed for this book.', corruptRes.json?.message);
 
-        // Cleanup corrupt file
-        await fs.unlink(corruptFilePath).catch(() => {});
 
         // 8. Test Book with chapters (1 published, 1 draft)
         const createChBook = await request('POST', '/api/books', {
@@ -195,20 +224,45 @@ async function run() {
         assert('Admin sees both chapters (2 pages)', book2AdminDoc.json?.data?.document?.pages?.length === 2, book2AdminDoc.json?.data?.document?.pages?.length);
 
     } finally {
-        // 10. Clean up temporary test books and test user
-        const toDeleteBooks = [emptyBookId, draftBookId, chBookId].filter(Boolean);
-        if (toDeleteBooks.length > 0) {
-            await pool.query(`DELETE FROM books WHERE book_id IN (${toDeleteBooks.map(() => '?').join(',')})`, toDeleteBooks);
-        }
-        await pool.query('DELETE FROM users WHERE email = ?', [userEmail]);
-        await pool.end();
+        await cleanupStep('corrupt test file', async () => {
+            if (corruptFilePath) {
+                await fs.unlink(corruptFilePath);
+            }
+        });
+
+        const bookIds = [
+            draftBookId,
+            emptyBookId,
+            chBookId,
+        ].filter(Number.isInteger);
+
+        await cleanupStep('test books', async () => {
+            if (bookIds.length > 0) {
+                await pool.query(
+                    `DELETE FROM books
+                     WHERE book_id IN (${bookIds.map(() => '?').join(',')})`,
+                    bookIds
+                );
+            }
+        });
+
+        await cleanupStep('test user', async () => {
+            await pool.query(
+                'DELETE FROM users WHERE email = ?',
+                [userEmail]
+            );
+        });
+
+        await cleanupStep('database pool close', async () => {
+            await pool.end();
+        });
     }
 
     console.log(`\n=== Tests Completed: ${passed} passed, ${failed} failed ===`);
-    process.exit(failed ? 1 : 0);
+    process.exitCode = (failed > 0 || cleanupFailed) ? 1 : 0;
 }
 
 run().catch((err) => {
     console.error('Test execution failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
 });

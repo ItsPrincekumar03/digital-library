@@ -1,3 +1,11 @@
+if (process.env.TEST_DB_NAME !== 'digital_library_test') {
+    console.error(
+        'Test blocked: TEST_DB_NAME must equal digital_library_test.'
+    );
+    process.exit(1);
+}
+
+process.env.DB_NAME = process.env.TEST_DB_NAME;
 const http = require('http');
 const app = require('../backend/src/app');
 const { pool } = require('../backend/src/config/database');
@@ -47,6 +55,12 @@ function request(method, path, { headers = {}, body = null } = {}) {
 
 async function run() {
     console.log('--- Starting API Integration Tests for Authors and Categories ---');
+
+    let author1Id = null;
+    let author2Id = null;
+    let cat1Id = null;
+    let cat2Id = null;
+    let cleanupFailed = false;
 
     // Start ephemeral server
     await new Promise((resolve) => {
@@ -110,8 +124,8 @@ async function run() {
             body: { name: `Aldous Huxley ${stamp}`, bio: 'English writer' },
         });
         console.log('POST /api/authors (1 & 2 created):', createAuthor1.status, createAuthor2.status);
-        const author1Id = createAuthor1.data.data.author.author_id;
-        const author2Id = createAuthor2.data.data.author.author_id;
+        author1Id = createAuthor1.data.data.author.author_id;
+        author2Id = createAuthor2.data.data.author.author_id;
 
         // 6. Create categories
         const createCat1 = await request('POST', '/api/categories', {
@@ -123,8 +137,8 @@ async function run() {
             body: { name: `Classic Literature ${stamp}`, description: 'Classic books' },
         });
         console.log('POST /api/categories (1 & 2 created):', createCat1.status, createCat2.status);
-        const cat1Id = createCat1.data.data.category.category_id;
-        const cat2Id = createCat2.data.data.category.category_id;
+        cat1Id = createCat1.data.data.category.category_id;
+        cat2Id = createCat2.data.data.category.category_id;
 
         // 7. Verify GET /api/authors returns sorted by name
         const getAuthorsAfter = await request('GET', '/api/authors', { headers: authHeaders });
@@ -180,20 +194,62 @@ async function run() {
             throw new Error('Active category missing from GET /api/categories');
         }
 
-        // Cleanup
-        await pool.query('DELETE FROM authors WHERE author_id IN (?, ?)', [author1Id, author2Id]);
-        await pool.query('DELETE FROM categories WHERE category_id IN (?, ?)', [cat1Id, cat2Id]);
-        console.log('Cleaned up test authors and categories.');
-
-        console.log('--- ALL API ENDPOINT TESTS PASSED SUCCESSFULLY! ---');
     } finally {
-        if (server) server.close();
-        await pool.end();
+        const attempt = async (label, action) => {
+            try {
+                await action();
+            } catch (err) {
+                cleanupFailed = true;
+                console.error(`[CLEANUP] ${label} failed:`, err.message);
+            }
+        };
+
+        await attempt('test authors', async () => {
+            const ids = [author1Id, author2Id].filter(Number.isInteger);
+
+            if (ids.length > 0) {
+                await pool.query(
+                    `DELETE FROM authors
+                     WHERE author_id IN (${ids.map(() => '?').join(',')})`,
+                    ids
+                );
+            }
+        });
+
+        await attempt('test categories', async () => {
+            const ids = [cat1Id, cat2Id].filter(Number.isInteger);
+
+            if (ids.length > 0) {
+                await pool.query(
+                    `DELETE FROM categories
+                     WHERE category_id IN (${ids.map(() => '?').join(',')})`,
+                    ids
+                );
+            }
+        });
+
+        await attempt('HTTP server close', async () => {
+            if (server?.listening) {
+                await new Promise((resolve, reject) => {
+                    server.close((err) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                });
+            }
+        });
+
+        await attempt('database pool close', async () => {
+            await pool.end();
+        });
+
+        if (cleanupFailed) {
+            process.exitCode = 1;
+        }
     }
 }
 
 run().catch((err) => {
     console.error('API Test Error:', err);
-    if (server) server.close();
-    process.exit(1);
+    process.exitCode = 1;
 });

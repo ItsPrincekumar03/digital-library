@@ -7,6 +7,7 @@ const COOKIE_OPTIONS = {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000,
+    path: '/',
 };
 
 async function register(req, res, next) {
@@ -34,7 +35,7 @@ async function login(req, res, next) {
         res.status(200).json({
             success: true,
             message: 'Login successful.',
-            data: { user },
+            data: { user, token },
         });
     } catch (err) {
         next(err);
@@ -42,7 +43,7 @@ async function login(req, res, next) {
 }
 
 async function logout(req, res) {
-    const token = req.cookies ? req.cookies[COOKIE_NAME] : null;
+    const token = req.token || (req.cookies ? req.cookies[COOKIE_NAME] : null);
     if (token) {
         tokenBlacklist.add(token);
     }

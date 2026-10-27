@@ -3,11 +3,18 @@ const jwtConfig = require('../config/jwt.config');
 const tokenBlacklist = require('../utils/tokenBlacklist');
 const userRepository = require('../repositories/user.repository');
 
-// Verifies the JWT from the cookie and attaches req.user.
+// Verifies the JWT from the cookie or Authorization header and attaches req.user.
 // Any route using this middleware requires the user to be logged in.
 async function requireAuth(req, res, next) {
     try {
-        const token = req.cookies ? req.cookies.token : null;
+        let token = req.cookies ? req.cookies.token : null;
+
+        if (!token && req.headers.authorization) {
+            const parts = req.headers.authorization.split(' ');
+            if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+                token = parts[1];
+            }
+        }
 
         if (!token) {
             return res.status(401).json({ success: false, message: 'Authentication required.' });

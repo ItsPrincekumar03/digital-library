@@ -1,6 +1,8 @@
-export const API_BASE_URL = "http://localhost:5000/api";
+const hostname = typeof window !== "undefined" && window.location?.hostname ? window.location.hostname : "localhost";
 
-export const FRONTEND_BASE_URL = "http://localhost:3000";
+export const API_BASE_URL = `http://${hostname}:5000/api`;
+
+export const FRONTEND_BASE_URL = `http://${hostname}:3000`;
 
 export const API_ENDPOINTS = Object.freeze({
     register: "/auth/register",

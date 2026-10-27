@@ -11,9 +11,34 @@
 // this script uses about 6. Run it once per 15 minutes, or restart the server
 // between runs (the limiter is in memory) - otherwise you will see 429 failures.
 
-const BASE = process.env.BASE_URL || 'http://localhost:5000';
+if (process.env.TEST_DB_NAME !== 'digital_library_test') {
+    console.error(
+        'Test blocked: TEST_DB_NAME must equal digital_library_test.'
+    );
+    process.exit(1);
+}
+
+process.env.DB_NAME = process.env.TEST_DB_NAME;
+
+const BASE = process.env.BASE_URL;
+
+if (BASE !== 'http://localhost:5001') {
+    console.error(
+        'Test blocked: BASE_URL must be http://localhost:5001.'
+    );
+    process.exit(1);
+}
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+// Database pool for cleanup (loaded lazily to respect TEST_DB_NAME override)
+let pool = null;
+function getPool() {
+    if (!pool) {
+        pool = require('../backend/src/config/database').pool;
+    }
+    return pool;
+}
 
 let passed = 0;
 let failed = 0;
@@ -40,10 +65,107 @@ function check(name, actual, expected) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  (expected ${expected}, got ${actual})`);
 }
 
+// Track created resources for cleanup
+const created = {
+    userEmail: null,
+    spEmail: null,
+    draftId: null,
+    pubId: null,
+    archId: null,
+    authorId: null,
+    categoryId: null,
+};
+
+let cleanupFailed = false;
+
+async function cleanup() {
+    let p;
+
+    try {
+        p = getPool();
+    } catch (err) {
+        cleanupFailed = true;
+        console.error('[CLEANUP] Could not obtain database pool:', err.message);
+        return;
+    }
+
+    const attempt = async (label, action) => {
+        try {
+            await action();
+        } catch (err) {
+            cleanupFailed = true;
+            console.error(`[CLEANUP] ${label} failed:`, err.message);
+        }
+    };
+
+    const bookIds = [
+        created.draftId,
+        created.pubId,
+        created.archId,
+    ].filter(Number.isInteger);
+
+    await attempt('books', async () => {
+        if (bookIds.length > 0) {
+            await p.query(
+                `DELETE FROM books
+                 WHERE book_id IN (${bookIds.map(() => '?').join(',')})`,
+                bookIds
+            );
+        }
+    });
+
+    await attempt('author', async () => {
+        if (created.authorId) {
+            await p.query(
+                'DELETE FROM authors WHERE author_id = ?',
+                [created.authorId]
+            );
+        }
+    });
+
+    await attempt('category', async () => {
+        if (created.categoryId) {
+            await p.query(
+                'DELETE FROM categories WHERE category_id = ?',
+                [created.categoryId]
+            );
+        }
+    });
+
+    await attempt('normal test user', async () => {
+        if (created.userEmail) {
+            await p.query(
+                'DELETE FROM users WHERE email = ?',
+                [created.userEmail]
+            );
+        }
+    });
+
+    await attempt('self-promotion test user', async () => {
+        if (created.spEmail) {
+            await p.query(
+                'DELETE FROM users WHERE email = ?',
+                [created.spEmail]
+            );
+        }
+    });
+
+    await attempt('database pool close', async () => {
+        await p.end();
+    });
+
+    if (cleanupFailed) {
+        console.error('[CLEANUP] One or more cleanup operations failed.');
+    } else {
+        console.log('Cleaned up test data.');
+    }
+}
+
 (async () => {
     if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
         console.log('Set ADMIN_EMAIL and ADMIN_PASSWORD first.');
-        process.exit(1);
+        process.exitCode = 1;
+        return;
     }
     const admin = makeClient();
     const user = makeClient();
@@ -53,6 +175,7 @@ function check(name, actual, expected) {
     let r = await admin('POST', '/api/auth/login', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
     check('22a. Admin login', r.status, 200);
     const userEmail = `m85user${stamp}@example.com`;
+    created.userEmail = userEmail;
     r = await user('POST', '/api/auth/register', { fullName: 'M85 User', email: userEmail, password: 'Passw0rd!234' });
     check('22b. User register', r.status, 201);
     r = await user('POST', '/api/auth/login', { email: userEmail, password: 'Passw0rd!234' });
@@ -64,15 +187,20 @@ function check(name, actual, expected) {
     r = await admin('POST', '/api/books', { title: `M85 Draft ${stamp}`, description: 'draft book' });
     check('6.  ADMIN can create book', r.status, 201);
     const draftId = r.json && r.json.data && r.json.data.book && r.json.data.book.book_id;
+    created.draftId = draftId;
     r = await admin('POST', '/api/books', { title: `M85 Pub ${stamp}`, description: 'to publish' });
     const pubId = r.json && r.json.data && r.json.data.book && r.json.data.book.book_id;
+    created.pubId = pubId;
     r = await admin('POST', '/api/books', { title: `M85 Arch ${stamp}`, description: 'to archive' });
     const archId = r.json && r.json.data && r.json.data.book && r.json.data.book.book_id;
+    created.archId = archId;
 
     r = await admin('POST', '/api/authors', { name: `M85 Author ${stamp}` });
     const authorId = r.json && r.json.data && r.json.data.author && r.json.data.author.author_id;
+    created.authorId = authorId;
     r = await admin('POST', '/api/categories', { name: `M85 Cat ${stamp}` });
     const categoryId = r.json && r.json.data && r.json.data.category && r.json.data.category.category_id;
+    created.categoryId = categoryId;
 
     // chapters on the (future) published book: one published, one draft
     r = await admin('POST', `/api/books/${pubId}/chapters`, { chapterNumber: 1, title: 'Ch1', content: 'public text' });
@@ -214,6 +342,9 @@ function check(name, actual, expected) {
     check('26d. No login -> 401', r.status, 401);
     r = await anon('POST', '/api/auth/register', { fullName: 'x', email: 'bad', password: '1' });
     check('26e. Bad register -> 400', r.status, 400);
+    // Track self-promotion user email for cleanup
+    const spEmail = `sp${stamp}@example.com`;
+    created.spEmail = spEmail;
     r = await user('POST', '/api/auth/register', { fullName: 'Selfpromote', email: `sp${stamp}@example.com`, password: 'Passw0rd!234', role: 'ADMIN', role_name: 'ADMIN', roleId: 1 });
     r = await anon('POST', '/api/auth/login', { email: `sp${stamp}@example.com`, password: 'Passw0rd!234' });
     const spMe = await anon('GET', '/api/auth/me');
@@ -226,5 +357,14 @@ function check(name, actual, expected) {
     check('22f. /me after logout -> 401', r.status, 401);
 
     console.log(`\n${passed} passed, ${failed} failed`);
-    process.exit(failed ? 1 : 0);
-})().catch((e) => { console.error(e); process.exit(2); });
+
+    await cleanup();
+
+    process.exitCode = (failed > 0 || cleanupFailed) ? 1 : 0;
+})().catch(async (e) => {
+    console.error('Content-model test failed:', e);
+
+    await cleanup();
+
+    process.exitCode = 2;
+});

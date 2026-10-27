@@ -138,7 +138,35 @@ async function readResponse(
     return text || null;
 }
 
+let authToken = null;
+try {
+    if (typeof sessionStorage !== "undefined") {
+        authToken = sessionStorage.getItem("dl_auth_token");
+    }
+} catch (_) {}
+
 export const api = {
+    setToken(token) {
+        authToken = token || null;
+        try {
+            if (typeof sessionStorage !== "undefined") {
+                if (token) {
+                    sessionStorage.setItem("dl_auth_token", token);
+                } else {
+                    sessionStorage.removeItem("dl_auth_token");
+                }
+            }
+        } catch (_) {}
+    },
+
+    getToken() {
+        return authToken;
+    },
+
+    clearToken() {
+        this.setToken(null);
+    },
+
     async request(
         path,
         options = {}
@@ -156,6 +184,10 @@ export const api = {
             // is handled automatically by the browser.
             credentials: "include"
         };
+
+        if (authToken && !headers.has("Authorization")) {
+            headers.set("Authorization", `Bearer ${authToken}`);
+        }
 
         /*
          * Automatically convert normal JavaScript
@@ -203,6 +235,10 @@ export const api = {
             );
 
         if (!response.ok) {
+            if (response.status === 401 && (path === "/auth/me" || path.endsWith("/auth/me"))) {
+                this.clearToken();
+            }
+
             throw new ApiError(
                 getErrorMessage(
                     payload,

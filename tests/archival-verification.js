@@ -1,6 +1,25 @@
+if (process.env.TEST_DB_NAME !== 'digital_library_test') {
+    console.error(
+        'Test blocked: TEST_DB_NAME must equal digital_library_test.'
+    );
+    process.exit(1);
+}
+
+process.env.DB_NAME = process.env.TEST_DB_NAME;
 const { pool } = require('../backend/src/config/database');
 const authorRepo = require('../backend/src/repositories/author.repository');
 const categoryRepo = require('../backend/src/repositories/category.repository');
+
+let cleanupFailed = false;
+
+async function cleanupStep(label, action) {
+    try {
+        await action();
+    } catch (err) {
+        cleanupFailed = true;
+        console.error(`[CLEANUP] ${label} failed:`, err.message);
+    }
+}
 
 async function testArchival() {
     console.log('--- Testing Author and Category Repositories ---');
@@ -63,21 +82,48 @@ async function testArchival() {
             throw new Error('includeArchived: true did not return all authors');
         }
 
-        console.log('--- ALL REPOSITORY VERIFICATION TESTS PASSED ---');
     } finally {
-        // 7. Cleanup test records so we don't pollute user database
-        if (authorAId || authorBId) {
-            await pool.query('DELETE FROM authors WHERE author_id IN (?, ?)', [authorAId || 0, authorBId || 0]);
+        await cleanupStep('test authors', async () => {
+            const ids = [authorAId, authorBId].filter(Number.isInteger);
+
+            if (ids.length > 0) {
+                await pool.query(
+                    `DELETE FROM authors
+                     WHERE author_id IN (${ids.map(() => '?').join(',')})`,
+                    ids
+                );
+            }
+        });
+
+        await cleanupStep('test categories', async () => {
+            const ids = [catAId, catBId].filter(Number.isInteger);
+
+            if (ids.length > 0) {
+                await pool.query(
+                    `DELETE FROM categories
+                     WHERE category_id IN (${ids.map(() => '?').join(',')})`,
+                    ids
+                );
+            }
+        });
+
+        await cleanupStep('database pool close', async () => {
+            await pool.end();
+        });
+
+        if (cleanupFailed) {
+            process.exitCode = 1;
         }
-        if (catAId || catBId) {
-            await pool.query('DELETE FROM categories WHERE category_id IN (?, ?)', [catAId || 0, catBId || 0]);
-        }
-        console.log('Cleaned up test data.');
-        await pool.end();
+    }
+
+    if (!cleanupFailed) {
+        console.log('--- ALL REPOSITORY VERIFICATION TESTS PASSED ---');
+    } else {
+        console.log('--- CLEANUP DID NOT COMPLETE SUCCESSFULLY ---');
     }
 }
 
 testArchival().catch(err => {
     console.error('Test failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
 });

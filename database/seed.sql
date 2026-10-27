@@ -6,10 +6,11 @@
 USE digital_library;
 
 -- ---------- Roles ----------
-INSERT INTO roles (role_name, description) VALUES
+INSERT IGNORE INTO roles (role_name, description) VALUES
 ('ADMIN', 'Full administrative access'),
 ('AUTHOR', 'Can create and submit books'),
-('READER', 'Can read and interact with published books');
+('READER', 'Can read and interact with published books'),
+('USER', 'Registered user with standard access');
 
 -- ---------- Users ----------
 -- password_hash values below are placeholders only (e.g. bcrypt of "changeme"),

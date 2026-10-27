@@ -20,14 +20,67 @@ const app = express();
 // -----------------------------
 // Security middleware
 // -----------------------------
-app.use(helmet());
+const isProduction = process.env.NODE_ENV === 'production';
+
+app.use(
+    helmet({
+        strictTransportSecurity: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
+        contentSecurityPolicy: isProduction ? undefined : false,
+        crossOriginResourcePolicy: isProduction ? undefined : { policy: "cross-origin" },
+    })
+);
 
 // -----------------------------
 // CORS
 // -----------------------------
+const allowedOrigins = isProduction
+    ? []
+    : [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ];
+
+if (process.env.CORS_ORIGIN) {
+    const configuredOrigin = process.env.CORS_ORIGIN.trim();
+
+    if (
+        configuredOrigin &&
+        !allowedOrigins.includes(configuredOrigin)
+    ) {
+        allowedOrigins.push(configuredOrigin);
+    }
+}
+
 app.use(
     cors({
-        origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+        origin: function (origin, callback) {
+            // Requests without an Origin header are allowed.
+            if (!origin) {
+                return callback(null, true);
+            }
+
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            // Development may use other localhost ports.
+            if (!isProduction) {
+                try {
+                    const url = new URL(origin);
+
+                    if (
+                        url.hostname === 'localhost' ||
+                        url.hostname === '127.0.0.1'
+                    ) {
+                        return callback(null, true);
+                    }
+                } catch (_) {
+                    // Invalid origins are rejected below.
+                }
+            }
+
+            return callback(new Error('Not allowed by CORS'));
+        },
         credentials: true,
     })
 );

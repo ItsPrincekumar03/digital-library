@@ -26,7 +26,7 @@ This creates two local demo accounts. Use them only on your own machine.
 
 | Role  | Login ID             | Password        |
 |-------|----------------------|-----------------|
-| ADMIN | demoadmin@example.com | Demoadmin@123  |
+| ADMIN | demoadmin@exmaple.com | Demoadmin@123  |
 | USER  | demouser@example.com  | Demouser@123   |
 
 The seed requires `NODE_ENV=development` in your `.env`, refuses to run in production, and never changes an existing account.

@@ -19,3 +19,7 @@ uploads/private/
 # Local environment files contain real database passwords and secrets.
 .env
 backend/.env
+
+# Module 17 - Protect local scratch files and private user uploads
+/scratch/
+/backend/uploads/private/

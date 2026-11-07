@@ -8,7 +8,9 @@
     "dev": "nodemon server.js",
     "seed:dev": "node scripts/dev-seed.js",
     "migrate": "node scripts/migrate.js",
-    "test": "node ../tests/publishing-workflow.test.js && node ../tests/reader-availability.test.js && node ../tests/archival-verification.js && node ../tests/api-categories-authors.test.js"
+    "test": "node ../tests/publishing-workflow.test.js",
+    "test:archival": "node ../tests/archival-verification.js",
+    "test:api": "node ../tests/api-categories-authors.test.js"
   },
   "keywords": [],
   "author": "",

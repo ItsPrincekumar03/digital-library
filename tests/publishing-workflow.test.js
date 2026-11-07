@@ -1,488 +1,452 @@
-if (process.env.TEST_DB_NAME !== 'digital_library_test') {
-    console.error(
-        'Test blocked: TEST_DB_NAME must equal digital_library_test.'
-    );
-    process.exit(1);
+'use strict';
+
+/**
+ * Isolated end-to-end publishing workflow test.
+ *
+ * Safety requirements:
+ * - Requires TEST_DB_NAME=digital_library_test before loading the DB module.
+ * - Requires a separately provisioned test admin via TEST_ADMIN_EMAIL and
+ *   TEST_ADMIN_PASSWORD; no demo or production credentials are embedded.
+ * - Starts the Express app in-process on an ephemeral 127.0.0.1 port so API
+ *   requests and direct SQL cleanup share the exact same configured pool.
+ * - Creates only uniquely named test records and never modifies existing books.
+ * - Cleans up its own books, generated public PDF artifacts, and test user in
+ *   finally; cleanup failures are reported as test failures.
+ */
+
+const crypto = require('crypto');
+
+function validateTestEnvironment() {
+    const expectedDatabase = process.env.TEST_DB_NAME;
+    if (expectedDatabase !== 'digital_library_test') {
+        throw new Error(
+            'Blocked: set TEST_DB_NAME exactly to digital_library_test before running this test.'
+        );
+    }
+
+    const adminEmail = process.env.TEST_ADMIN_EMAIL;
+    const adminPassword = process.env.TEST_ADMIN_PASSWORD;
+    if (!adminEmail || !adminPassword) {
+        throw new Error(
+            'TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD must be supplied for a fresh local test-admin account.'
+        );
+    }
+
+    // This must happen before importing database.js, app.js, or any repository.
+    process.env.DB_NAME = expectedDatabase;
+    return { expectedDatabase, adminEmail, adminPassword };
 }
 
-process.env.DB_NAME = process.env.TEST_DB_NAME;
-const { pool } = require('../backend/src/config/database');
-const fs = require('fs/promises');
-const path = require('path');
+const testConfig = validateTestEnvironment();
+const dbConfig = require('../backend/src/config/db.config');
+if (dbConfig.database !== testConfig.expectedDatabase) {
+    throw new Error('Blocked: configured DB_NAME does not match TEST_DB_NAME.');
+}
 
+const { pool } = require('../backend/src/config/database');
+const app = require('../backend/src/app');
 const {
     resolvePublicPdfPath,
     resolvePublicProcessedPath,
-    buildPublicImagesDirName,
     resolvePublicImagesDir,
+    buildPublicImagesDirName,
+    deleteFileIfExists,
+    deleteDirectoryIfExists,
 } = require('../backend/src/utils/fileStorage');
 
-const BASE_URL = process.env.BASE_URL;
-
-if (BASE_URL !== 'http://localhost:5001') {
-    console.error(
-        'Test blocked: BASE_URL must be http://localhost:5001.'
-    );
-    process.exit(1);
-}
-
-async function request(method, urlPath, { cookie = '', body = null, formData = null } = {}) {
-    const headers = {};
-    if (cookie) headers['Cookie'] = cookie;
-    let reqBody = null;
-
-    if (formData) {
-        reqBody = formData;
-    } else if (body) {
-        headers['Content-Type'] = 'application/json';
-        reqBody = JSON.stringify(body);
-    }
-
-    const res = await fetch(`${BASE_URL}${urlPath}`, {
-        method,
-        headers,
-        body: reqBody,
-    });
-
-    const setCookie = res.headers.get('set-cookie');
-    let newCookie = cookie;
-    if (setCookie && setCookie.startsWith('token=')) {
-        newCookie = setCookie.split(';')[0];
-    }
-
-    let json = null;
-    try {
-        json = await res.json();
-    } catch {
-        json = null;
-    }
-
-    return { status: res.status, json, cookie: newCookie };
-}
+const UUID_PDF_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i;
+const UUID_PROCESSED_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.processed\.json$/i;
 
 let passed = 0;
 let failed = 0;
-let cleanupFailed = false;
+let server;
+let baseUrl;
+let adminUserId = null;
+let testUserId = null;
+const createdBookIds = new Set();
+const createdBookTitles = [];
+let testUserEmail = null;
 
 function assert(description, condition, actual) {
     if (condition) {
         console.log(`[PASS] ${description}`);
-        passed++;
+        passed += 1;
     } else {
         console.error(`[FAIL] ${description} -> got:`, actual);
-        failed++;
+        failed += 1;
     }
 }
 
-async function cleanupStep(label, action) {
+function requireValue(description, value) {
+    if (value === undefined || value === null || value === '') {
+        throw new Error(`Setup failed: ${description} was not returned by the API.`);
+    }
+    return value;
+}
+
+function startServer() {
+    return new Promise((resolve, reject) => {
+        const instance = app.listen(0, '127.0.0.1');
+        instance.once('error', reject);
+        instance.once('listening', () => {
+            const address = instance.address();
+            if (!address || typeof address === 'string') {
+                instance.close();
+                reject(new Error('Could not determine the ephemeral test-server port.'));
+                return;
+            }
+            resolve({ instance, url: `http://127.0.0.1:${address.port}` });
+        });
+    });
+}
+
+function closeServer(instance) {
+    if (!instance || !instance.listening) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        instance.close((error) => (error ? reject(error) : resolve()));
+    });
+}
+
+async function request(method, urlPath, { token = '', body = null, formData = null } = {}) {
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let requestBody = null;
+    if (formData) {
+        requestBody = formData;
+    } else if (body !== null) {
+        headers['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${baseUrl}${urlPath}`, {
+        method,
+        headers,
+        body: requestBody,
+    });
+
+    let json = null;
     try {
-        await action();
-    } catch (err) {
-        if (err.code === 'ENOENT') {
-            console.log(`[CLEANUP] Already absent: ${label}`);
-            return;
+        json = await response.json();
+    } catch {
+        // Preserve the HTTP status so the assertion reports a useful failure.
+    }
+
+    return { status: response.status, json };
+}
+
+async function verifyDatabaseTarget() {
+    const [rows] = await pool.query('SELECT DATABASE() AS current_db');
+    const actualDatabase = rows[0]?.current_db;
+    if (actualDatabase !== testConfig.expectedDatabase) {
+        throw new Error(
+            `Database isolation failure: expected ${testConfig.expectedDatabase}, got ${actualDatabase}.`
+        );
+    }
+    console.log(`[SAFETY] Verified database target: ${actualDatabase}`);
+}
+
+async function createBook(adminToken, title, description) {
+    createdBookTitles.push(title);
+    const response = await request('POST', '/api/books', {
+        token: adminToken,
+        body: { title, description },
+    });
+    assert(`Admin creates book "${title}" (201)`, response.status === 201, response.status);
+    const bookId = response.json?.data?.book?.book_id;
+    if (bookId !== undefined && bookId !== null) createdBookIds.add(Number(bookId));
+    return requireValue(`book ID for ${title}`, bookId);
+}
+async function cleanupGeneratedPdfArtifacts(bookRows) {
+    for (const book of bookRows) {
+        const storedPdfName = book.pdf_stored_name;
+        if (typeof storedPdfName === 'string' && UUID_PDF_PATTERN.test(storedPdfName)) {
+            await deleteFileIfExists(resolvePublicPdfPath(storedPdfName));
+            await deleteDirectoryIfExists(
+                resolvePublicImagesDir(buildPublicImagesDirName(storedPdfName))
+            );
         }
 
-        cleanupFailed = true;
-        console.error(`[CLEANUP] ${label} failed:`, err.message);
+        const processedName = book.processed_content_path;
+        if (typeof processedName === 'string' && UUID_PROCESSED_PATTERN.test(processedName)) {
+            await deleteFileIfExists(resolvePublicProcessedPath(processedName));
+        }
     }
 }
 
-async function run() {
-    console.log(
-        '=== Step 6: Full End-to-End Publishing Workflow Verification ===\n'
-    );
+async function cleanupTestRecords() {
+    // Discover by both captured IDs and unique owner/title pairs. This covers
+    // a request that inserted a row but returned an incomplete response.
+    const ids = new Set([...createdBookIds].filter(Number.isSafeInteger));
 
-    const stamp = Date.now();
+    if (adminUserId && createdBookTitles.length > 0) {
+        const placeholders = createdBookTitles.map(() => '?').join(', ');
+        const [rows] = await pool.query(
+            `SELECT book_id FROM books WHERE owner_id = ? AND title IN (${placeholders})`,
+            [adminUserId, ...createdBookTitles]
+        );
+        for (const row of rows) ids.add(Number(row.book_id));
+    }
 
-    let userEmail = null;
-    let adminCookie = '';
-    let userCookie = '';
+    const bookIds = [...ids];
+    if (bookIds.length > 0) {
+        const placeholders = bookIds.map(() => '?').join(', ');
+        const [bookRows] = await pool.query(
+            `SELECT book_id, pdf_stored_name, processed_content_path
+               FROM books
+              WHERE book_id IN (${placeholders})`,
+            bookIds
+        );
 
-    let bookAId;
-    let bookBId;
-    let draftBookId;
-    let regBookId;
+        // Remove only files with the application's generated UUID names.
+        // If file cleanup fails, retain the DB rows and report the failure.
+        await cleanupGeneratedPdfArtifacts(bookRows);
+        await pool.query(`DELETE FROM books WHERE book_id IN (${placeholders})`, bookIds);
+        console.log(`[CLEANUP] Removed ${bookIds.length} test-owned book record(s).`);
+    }
 
-    try {
-        // Setup: Admin and User sessions
-        const adminLogin = await request('POST', '/api/auth/login', {
-            body: {
-                email: 'demoadmin@example.com',
-                password: 'Demoadmin@123',
-            },
-        });
+    // The registration endpoint may commit the user but return an incomplete
+    // response (or the HTTP connection may fail after the commit). In that
+    // case testUserId is unavailable, so recover the row by its unique,
+    // per-run generated email before cleanup.
+    if (testUserEmail) {
+        let cleanupUserId = Number.isSafeInteger(testUserId) && testUserId > 0
+            ? testUserId
+            : null;
 
-        assert('Admin login (200)', adminLogin.status === 200, adminLogin.status);
-        adminCookie = adminLogin.cookie;
+        if (!cleanupUserId) {
+            const [userRows] = await pool.query(
+                'SELECT user_id FROM users WHERE email = ? LIMIT 1',
+                [testUserEmail]
+            );
+            cleanupUserId = userRows[0] ? Number(userRows[0].user_id) : null;
+        }
 
-        userEmail = `workflow_user_${stamp}@example.com`;
+        if (Number.isSafeInteger(cleanupUserId) && cleanupUserId > 0) {
+            await pool.query(
+                'DELETE FROM users WHERE user_id = ? AND email = ?',
+                [cleanupUserId, testUserEmail]
+            );
+            console.log('[CLEANUP] Removed the test-created user when present.');
+        }
+    }
+}
 
-        const userReg = await request('POST', '/api/auth/register', {
-            body: {
-                fullName: 'Workflow User',
-                email: userEmail,
-                password: 'Passw0rd!Workflow',
-            },
-        });
+function createMinimalPdf() {
+    const contentStream =
+        'BT\n' +
+        '/F1 18 Tf\n' +
+        '50 720 Td\n' +
+        '(Welcome to Digital Library PDF) Tj\n' +
+        'ET\n';
 
-        assert('User register (201)', userReg.status === 201, userReg.status);
+    const streamLength = Buffer.byteLength(contentStream, 'latin1');
+    const objects = [
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+        '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+        '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ' +
+        '/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n',
+        `4 0 obj\n<< /Length ${streamLength} >>\nstream\n${contentStream}endstream\nendobj\n`,
+        '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    ];
 
-        const userLogin = await request('POST', '/api/auth/login', {
-            body: {
-                email: userEmail,
-                password: 'Passw0rd!Workflow',
-            },
-        });
+    let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+    const objectOffsets = [0];
 
-        assert('User login (200)', userLogin.status === 200, userLogin.status);
-        userCookie = userLogin.cookie;
+    for (const object of objects) {
+        objectOffsets.push(Buffer.byteLength(pdf, 'latin1'));
+        pdf += object;
+    }
 
-        // Keep your existing PART A, PART B, PART C and PART D
-        // test code here, unchanged.
-    // -------------------------------------------------------------
-    // PART A: Workflow with Chapter-based book
-    // -------------------------------------------------------------
-    console.log('\n--- Part A: Chapter-based Book Publishing Workflow ---');
+    const crossReferenceOffset = Buffer.byteLength(pdf, 'latin1');
+    const crossReferenceEntries = [
+        '0000000000 65535 f \n',
+        ...objectOffsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`),
+    ];
 
-    // 1. Admin creates a new book
-    const createBookRes = await request('POST', '/api/books', {
-        cookie: adminCookie,
+    pdf += `xref\n0 ${objects.length + 1}\n`;
+    pdf += crossReferenceEntries.join('');
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n`;
+    pdf += `startxref\n${crossReferenceOffset}\n%%EOF\n`;
+
+    return Buffer.from(pdf, 'latin1');
+}
+
+async function runWorkflow() {
+    console.log('=== Isolated Publishing Workflow Verification ===');
+    await verifyDatabaseTarget();
+
+    const started = await startServer();
+    server = started.instance;
+    baseUrl = started.url;
+    console.log(`[SAFETY] Express test app listening on ${baseUrl}`);
+
+    const adminLogin = await request('POST', '/api/auth/login', {
         body: {
-            title: `The Great Chronicles ${stamp}`,
-            description: 'An epic tale written in chapters.',
+            email: testConfig.adminEmail,
+            password: testConfig.adminPassword,
         },
     });
-    assert('1. Admin creates book (201)', createBookRes.status === 201, createBookRes.status);
-    bookAId = createBookRes.json?.data?.book?.book_id;
-    assert('Book A has valid ID', Number.isInteger(bookAId) && bookAId > 0, bookAId);
+    assert('Configured test admin login succeeds (200)', adminLogin.status === 200, adminLogin.status);
+    const adminToken = requireValue('admin access token', adminLogin.json?.data?.token);
+    assert('Configured account has ADMIN role', adminLogin.json?.data?.user?.role_name === 'ADMIN', adminLogin.json?.data?.user?.role_name);
+    adminUserId = Number(requireValue('admin user ID', adminLogin.json?.data?.user?.user_id));
 
-    // Add chapter to book A
-    const createChRes = await request('POST', `/api/books/${bookAId}/chapters`, {
-        cookie: adminCookie,
+    const stamp = `${Date.now()}_${crypto.randomUUID()}`;
+    const userPassword = `Workflow!${crypto.randomUUID()}aA1`;
+    testUserEmail = `workflow_${stamp}@example.test`;
+
+    const registerResponse = await request('POST', '/api/auth/register', {
+        body: { fullName: 'Module 17 Workflow User', email: testUserEmail, password: userPassword },
+    });
+    assert('Test user registration succeeds (201)', registerResponse.status === 201, registerResponse.status);
+    const returnedTestUserId = Number(requireValue('registered test user ID', registerResponse.json?.data?.user?.user_id));
+    testUserId = Number.isSafeInteger(returnedTestUserId) && returnedTestUserId > 0
+        ? returnedTestUserId
+        : null;
+
+    const userLogin = await request('POST', '/api/auth/login', {
+        body: { email: testUserEmail, password: userPassword },
+    });
+    assert('Test user login succeeds (200)', userLogin.status === 200, userLogin.status);
+    const userToken = requireValue('test user access token', userLogin.json?.data?.token);
+
+    // Part A: chapter-based public book workflow.
+    const bookATitle = `Module 17 Chapter Workflow ${stamp}`;
+    const bookAId = await createBook(adminToken, bookATitle, 'Isolated chapter publishing test.');
+
+    const chapterResponse = await request('POST', `/api/books/${bookAId}/chapters`, {
+        token: adminToken,
         body: {
             chapterNumber: 1,
-            title: 'Departure',
-            content: 'The journey began at first dawn.\n\nThey packed their provisions and set out.',
+            title: 'Test Chapter',
+            content: 'The first paragraph of the isolated workflow.\n\nThe second paragraph.',
         },
     });
-    assert('Add Chapter 1 (201)', createChRes.status === 201, createChRes.status);
-    const chA1Id = createChRes.json?.data?.chapter?.chapter_id;
+    assert('Admin creates chapter (201)', chapterResponse.status === 201, chapterResponse.status);
+    const chapterId = requireValue('created chapter ID', chapterResponse.json?.data?.chapter?.chapter_id);
 
-    // Publish chapter 1
-    const pubChRes = await request('PATCH', `/api/chapters/${chA1Id}/publish`, {
-        cookie: adminCookie,
-    });
-    assert('Publish Chapter 1 (200)', pubChRes.status === 200, pubChRes.status);
+    const publishChapter = await request('PATCH', `/api/chapters/${chapterId}/publish`, { token: adminToken });
+    assert('Admin publishes chapter (200)', publishChapter.status === 200, publishChapter.status);
 
-    // 3. Admin publishes the book
-    const pubBookRes = await request('PATCH', `/api/books/${bookAId}/publish`, {
-        cookie: adminCookie,
-    });
-    assert('3. Admin publishes book (200)', pubBookRes.status === 200, pubBookRes.status);
+    const publishBook = await request('PATCH', `/api/books/${bookAId}/publish`, { token: adminToken });
+    assert('Admin publishes chapter-based book (200)', publishBook.status === 200, publishBook.status);
 
-    // 4. Confirm publication status in MySQL
-    const [dbRowsA] = await pool.query('SELECT book_id, status FROM books WHERE book_id = ?', [bookAId]);
-    assert('4. Confirm status in MySQL is PUBLISHED', dbRowsA?.[0]?.status === 'PUBLISHED', dbRowsA?.[0]?.status);
+    const [bookARows] = await pool.query('SELECT status FROM books WHERE book_id = ?', [bookAId]);
+    assert('Chapter-based book is PUBLISHED in the test database', bookARows[0]?.status === 'PUBLISHED', bookARows[0]?.status);
 
-    // 5. Confirm book appears on public listing
-    const listingRes = await request('GET', '/api/books', { cookie: userCookie });
-    assert('5. Public listing succeeds (200)', listingRes.status === 200, listingRes.status);
-    const foundInListing = listingRes.json?.data?.books?.some((b) => b.book_id === bookAId);
-    assert('Book A is present in public listing', foundInListing === true, foundInListing);
+    const listingA = await request('GET', '/api/books', { token: userToken });
+    assert('User can load public catalogue (200)', listingA.status === 200, listingA.status);
+    assert('Published chapter book appears in catalogue', listingA.json?.data?.books?.some((book) => Number(book.book_id) === Number(bookAId)) === true, listingA.json?.data?.books?.length);
 
-    // 6. Open its detail page (GET /api/books/:id)
-    const detailRes = await request('GET', `/api/books/${bookAId}`, { cookie: userCookie });
-    assert('6. Book detail endpoint returns 200', detailRes.status === 200, detailRes.status);
-    assert('Detail returns title and status PUBLISHED', detailRes.json?.data?.book?.status === 'PUBLISHED', detailRes.json?.data?.book?.status);
+    const detailA = await request('GET', `/api/books/${bookAId}`, { token: userToken });
+    assert('User can load published book details (200)', detailA.status === 200, detailA.status);
+    assert('Book details report PUBLISHED status', detailA.json?.data?.book?.status === 'PUBLISHED', detailA.json?.data?.book?.status);
 
-    // 7. Confirm reader loads the correct content (GET /api/books/:id/document)
-    const readerRes = await request('GET', `/api/books/${bookAId}/document`, { cookie: userCookie });
-    assert('7. Reader loads document successfully (200)', readerRes.status === 200, readerRes.status);
-    const docA = readerRes.json?.data?.document;
-    assert('Document source is chapters', docA?.source === 'chapters', docA?.source);
-    assert('Document page count is 1', docA?.pageCount === 1, docA?.pageCount);
-    assert('Page 1 has heading block: Chapter 1: Departure', docA?.pages?.[0]?.blocks?.[0]?.text === 'Chapter 1: Departure', docA?.pages?.[0]?.blocks?.[0]?.text);
-    assert('Page 1 has 2 content paragraphs', docA?.pages?.[0]?.paragraphs?.length === 2, docA?.pages?.[0]?.paragraphs?.length);
+    const documentA = await request('GET', `/api/books/${bookAId}/document`, { token: userToken });
+    assert('Reader can load chapter document (200)', documentA.status === 200, documentA.status);
+    const chapterDocument = documentA.json?.data?.document;
+    assert('Reader document source is chapters', chapterDocument?.source === 'chapters', chapterDocument?.source);
+    assert('Reader document contains one page', chapterDocument?.pageCount === 1, chapterDocument?.pageCount);
+    // Part B: PDF import and publishing workflow.
+    const bookBTitle = `Module 17 PDF Workflow ${stamp}`;
+    const bookBId = await createBook(adminToken, bookBTitle, 'Isolated PDF publishing test.');
 
-    // 8. Reload the page and confirm the book remains available
-    const reloadRes = await request('GET', `/api/books/${bookAId}/document`, { cookie: userCookie });
-    assert('8. Reloading reader document returns 200', reloadRes.status === 200, reloadRes.status);
-    assert('Reloaded document matches original page count', reloadRes.json?.data?.document?.pageCount === 1, reloadRes.json?.data?.document?.pageCount);
+    const minimalPdf = createMinimalPdf();
 
-    // -------------------------------------------------------------
-    // PART B: PDF Upload Publishing Workflow
-    // -------------------------------------------------------------
-    console.log('\n--- Part B: PDF-based Book Publishing Workflow ---');
-
-    // 1. Admin creates another book for PDF upload
-    const createPdfBook = await request('POST', '/api/books', {
-        cookie: adminCookie,
-        body: {
-            title: `PDF Documentation Guide ${stamp}`,
-            description: 'A comprehensive manual uploaded as PDF.',
-        },
-    });
-    assert('Admin creates PDF book (201)', createPdfBook.status === 201, createPdfBook.status);
-    bookBId = createPdfBook.json?.data?.book?.book_id;
-
-    // Build a minimal valid PDF 1.4 binary
-    const minimalPdf = Buffer.from(
-        '%PDF-1.4\n' +
-        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
-        '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n' +
-        '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n' +
-        '4 0 obj\n<< /Length 58 >>\nstream\nBT\n/F1 18 Tf\n50 720 Td\n(Welcome to Digital Library PDF) Tj\nET\nendstream\nendobj\n' +
-        '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n' +
-        'xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000234 00000 n \n0000000342 00000 n \n' +
-        'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n419\n%%EOF\n',
-        'latin1'
-    );
-
-    // 2. Upload PDF
     const formData = new FormData();
-    const blob = new Blob([minimalPdf], { type: 'application/pdf' });
-    formData.append('pdf', blob, 'guide.pdf');
+    formData.append('pdf', new Blob([minimalPdf], { type: 'application/pdf' }), 'module17-guide.pdf');
 
-    const uploadRes = await request('POST', `/api/books/${bookBId}/pdf`, {
-        cookie: adminCookie,
+    const uploadResponse = await request('POST', `/api/books/${bookBId}/pdf`, {
+        token: adminToken,
         formData,
     });
-    assert('2. Admin uploads PDF (200)', uploadRes.status === 200, uploadRes.status);
-    assert('PDF upload confirms has_processed_text', uploadRes.json?.data?.book?.has_processed_text === true, uploadRes.json?.data?.book);
+    assert('Admin uploads PDF (200)', uploadResponse.status === 200, uploadResponse.status);
+    assert('PDF upload reports processed text', uploadResponse.json?.data?.book?.has_processed_text === true, uploadResponse.json?.data?.book?.has_processed_text);
 
-    // 3. Publish PDF book
-    const pubBRes = await request('PATCH', `/api/books/${bookBId}/publish`, { cookie: adminCookie });
-    assert('3. Admin publishes PDF book (200)', pubBRes.status === 200, pubBRes.status);
+    const publishPdfBook = await request('PATCH', `/api/books/${bookBId}/publish`, { token: adminToken });
+    assert('Admin publishes PDF book (200)', publishPdfBook.status === 200, publishPdfBook.status);
 
-    // 4. Confirm in MySQL
-    const [dbRowsB] = await pool.query('SELECT status, pdf_original_name, processed_content_path FROM books WHERE book_id = ?', [bookBId]);
-    assert('4. Confirm PDF book is PUBLISHED in DB', dbRowsB?.[0]?.status === 'PUBLISHED', dbRowsB?.[0]?.status);
-    assert('PDF original name saved in DB', dbRowsB?.[0]?.pdf_original_name === 'guide.pdf', dbRowsB?.[0]?.pdf_original_name);
-    assert('Processed content path populated in DB', !!dbRowsB?.[0]?.processed_content_path, dbRowsB?.[0]?.processed_content_path);
+    const [bookBRows] = await pool.query(
+        'SELECT status, pdf_original_name, pdf_stored_name, processed_content_path FROM books WHERE book_id = ?',
+        [bookBId]
+    );
+    assert('PDF book is PUBLISHED in the test database', bookBRows[0]?.status === 'PUBLISHED', bookBRows[0]?.status);
+    assert('Original PDF filename is stored', bookBRows[0]?.pdf_original_name === 'module17-guide.pdf', bookBRows[0]?.pdf_original_name);
+    assert('Generated PDF filename follows UUID format', UUID_PDF_PATTERN.test(bookBRows[0]?.pdf_stored_name || ''), bookBRows[0]?.pdf_stored_name);
 
-    // 5. Appears in public listing
-    const listingBRes = await request('GET', '/api/books', { cookie: userCookie });
-    const foundB = listingBRes.json?.data?.books?.some((b) => b.book_id === bookBId);
-    assert('5. PDF book appears on public listing', foundB === true, foundB);
+    const documentB = await request('GET', `/api/books/${bookBId}/document`, { token: userToken });
+    assert('Reader can load imported PDF document (200)', documentB.status === 200, documentB.status);
+    const pdfText = documentB.json?.data?.document?.pages?.[0]?.text || '';
+    assert('Extracted PDF text contains expected phrase', pdfText.includes('Welcome to Digital Library PDF'), pdfText);
 
-    // 6. Open detail page
-    const detailBRes = await request('GET', `/api/books/${bookBId}`, { cookie: userCookie });
-    assert('6. PDF book detail returns 200', detailBRes.status === 200, detailBRes.status);
+    // Part C: draft and archived book access control.
+    const draftTitle = `Module 17 Draft Workflow ${stamp}`;
+    const draftBookId = await createBook(adminToken, draftTitle, 'Must remain private to non-admin users.');
 
-    // 7. Reader loads extracted text from PDF
-    const readerBRes = await request('GET', `/api/books/${bookBId}/document`, { cookie: userCookie });
-    assert('7. PDF book document loads in reader (200)', readerBRes.status === 200, readerBRes.status);
-    const docB = readerBRes.json?.data?.document;
-    assert('Document page count is 1', docB?.pageCount === 1, docB?.pageCount);
-    const pageText = docB?.pages?.[0]?.text || '';
-    assert('Extracted text contains PDF content', pageText.includes('Welcome to Digital Library PDF'), pageText);
+    const draftDetail = await request('GET', `/api/books/${draftBookId}`, { token: userToken });
+    assert('Normal user cannot view a draft book (404)', draftDetail.status === 404, draftDetail.status);
+    assert('Draft response uses BOOK_NOT_PUBLISHED', draftDetail.json?.code === 'BOOK_NOT_PUBLISHED', draftDetail.json?.code);
 
-    // 8. Reload confirms still available
-    const reloadBRes = await request('GET', `/api/books/${bookBId}/document`, { cookie: userCookie });
-    assert('8. PDF reader reload returns 200', reloadBRes.status === 200, reloadBRes.status);
+    const draftDocument = await request('GET', `/api/books/${draftBookId}/document`, { token: userToken });
+    assert('Normal user cannot read a draft document (404)', draftDocument.status === 404, draftDocument.status);
 
-    // -------------------------------------------------------------
-    // PART C: Access Control & Security Tests
-    // -------------------------------------------------------------
-    console.log('\n--- Part C: Access Control & Security Checks ---');
+    const archiveResponse = await request('PATCH', `/api/books/${bookAId}/archive`, { token: adminToken });
+    assert('Admin archives the test-created book (200)', archiveResponse.status === 200, archiveResponse.status);
 
-    // 9. Drafts and archived books remain inaccessible to unauthorized users
-    const draftBookRes = await request('POST', '/api/books', {
-        cookie: adminCookie,
-        body: { title: `Draft Book ${stamp}`, description: 'Must stay private' },
-    });
-    draftBookId = draftBookRes.json?.data?.book?.book_id;
+    const archivedDetail = await request('GET', `/api/books/${bookAId}`, { token: userToken });
+    assert('Normal user cannot view an archived book (404)', archivedDetail.status === 404, archivedDetail.status);
+    assert('Archived response uses BOOK_NOT_PUBLISHED', archivedDetail.json?.code === 'BOOK_NOT_PUBLISHED', archivedDetail.json?.code);
 
-    // Normal user attempts to access draft
-    const userDraftGet = await request('GET', `/api/books/${draftBookId}`, { cookie: userCookie });
-    assert('9a. Normal user cannot view draft book detail (404)', userDraftGet.status === 404, userDraftGet.status);
-    assert('Draft detail returns code BOOK_NOT_PUBLISHED', userDraftGet.json?.code === 'BOOK_NOT_PUBLISHED', userDraftGet.json?.code);
-
-    const userDraftDoc = await request('GET', `/api/books/${draftBookId}/document`, { cookie: userCookie });
-    assert('9b. Normal user cannot read draft document (404)', userDraftDoc.status === 404, userDraftDoc.status);
-    assert('Draft document returns code BOOK_NOT_PUBLISHED', userDraftDoc.json?.code === 'BOOK_NOT_PUBLISHED', userDraftDoc.json?.code);
-
-    // Archive book A and verify it becomes inaccessible to normal user
-    await request('PATCH', `/api/books/${bookAId}/archive`, { cookie: adminCookie });
-    const userArchGet = await request('GET', `/api/books/${bookAId}`, { cookie: userCookie });
-    assert('9c. Normal user cannot view archived book detail (404)', userArchGet.status === 404, userArchGet.status);
-    assert('Archived book detail returns code BOOK_NOT_PUBLISHED', userArchGet.json?.code === 'BOOK_NOT_PUBLISHED', userArchGet.json?.code);
-
-    const userArchDoc = await request('GET', `/api/books/${bookAId}/document`, { cookie: userCookie });
-    assert('9d. Normal user cannot read archived book document (404)', userArchDoc.status === 404, userArchDoc.status);
-    assert('Archived document returns code BOOK_NOT_PUBLISHED', userArchDoc.json?.code === 'BOOK_NOT_PUBLISHED', userArchDoc.json?.code);
-
-    // 10. Self-contained regression test (dedicated test book, not relying on Book 2)
-    console.log('\n--- Part D: Self-Contained Regression Test ---');
-    const createRegBookRes = await request('POST', '/api/books', {
-        cookie: adminCookie,
-        body: {
-            title: 'Regression Test Book ' + stamp,
-            description: 'Self-contained regression test book with published chapter.',
-        },
-    });
-    assert('10a. Admin creates regression book (201)', createRegBookRes.status === 201, createRegBookRes.status);
-    regBookId = createRegBookRes.json?.data?.book?.book_id;
-    assert('Regression book has valid ID', Number.isInteger(regBookId) && regBookId > 0, regBookId);
-
-    // Add a chapter
-    const regChRes = await request('POST', '/api/books/' + regBookId + '/chapters', {
-        cookie: adminCookie,
-        body: {
-            chapterNumber: 1,
-            title: 'Regression Chapter',
-            content: 'This is regression test content.\n\nIt should be readable after publishing.',
-        },
-    });
-    assert('Add regression chapter (201)', regChRes.status === 201, regChRes.status);
-    const regChId = regChRes.json?.data?.chapter?.chapter_id;
-
-    // Publish the chapter
-    const regPubChRes = await request('PATCH', '/api/chapters/' + regChId + '/publish', {
-        cookie: adminCookie,
-    });
-    assert('Publish regression chapter (200)', regPubChRes.status === 200, regPubChRes.status);
-
-    // Publish the book
-    const regPubBookRes = await request('PATCH', '/api/books/' + regBookId + '/publish', {
-        cookie: adminCookie,
-    });
-    assert('Publish regression book (200)', regPubBookRes.status === 200, regPubBookRes.status);
-
-    // Verify normal user can read the document
-    const regDetailRes = await request('GET', '/api/books/' + regBookId, { cookie: userCookie });
-    assert('10b. Regression book detail loads (200)', regDetailRes.status === 200, regDetailRes.status);
-
-    const regDocRes = await request('GET', '/api/books/' + regBookId + '/document', { cookie: userCookie });
-    assert('10c. Regression book document loads (200)', regDocRes.status === 200, regDocRes.status);
-    const regDoc = regDocRes.json?.data?.document;
-    assert('Regression document has pages', regDoc?.pages?.length > 0, regDoc?.pages?.length);
-    assert('Regression document page 1 has heading', regDoc?.pages?.[0]?.blocks?.[0]?.kind === 'heading', regDoc?.pages?.[0]?.blocks?.[0]);
-    assert('Regression document page 1 has paragraph', regDoc?.pages?.[0]?.blocks?.[1]?.kind === 'paragraph', regDoc?.pages?.[0]?.blocks?.[1]);
-
-    // Verify unpublished chapter is not readable by regular user
-    const regDraftChRes = await request('POST', '/api/books/' + regBookId + '/chapters', {
-        cookie: adminCookie,
-        body: {
-            chapterNumber: 2,
-            title: 'Draft Regression Chapter',
-            content: 'This draft chapter should not be visible to users.',
-        },
-    });
-    const regDraftChId = regDraftChRes.json?.data?.chapter?.chapter_id;
-
-    const regDraftDocRes = await request('GET', '/api/books/' + regBookId + '/document', { cookie: userCookie });
-    assert('Unpublished chapter not visible to user (1 page only)', regDraftDocRes.json?.data?.document?.pages?.length === 1, regDraftDocRes.json?.data?.document?.pages?.length);
-
-    // Admin can see both chapters
-    const regAdminDocRes = await request('GET', '/api/books/' + regBookId + '/document', { cookie: adminCookie });
-    assert('Admin sees both chapters (2 pages)', regAdminDocRes.json?.data?.document?.pages?.length === 2, regAdminDocRes.json?.data?.document?.pages?.length);
-
-    } finally {
-        const bookIds = [
-            bookAId,
-            bookBId,
-            draftBookId,
-            regBookId,
-        ].filter(Number.isInteger);
-
-        let pdfRows = [];
-
-        // A metadata lookup failure must not prevent database cleanup.
-        if (bookIds.length > 0) {
-            await cleanupStep('read test book file metadata', async () => {
-                const [rows] = await pool.query(
-                    `SELECT pdf_stored_name, processed_content_path
-                     FROM books
-                     WHERE book_id IN (${bookIds.map(() => '?').join(',')})`,
-                    bookIds
-                );
-
-                pdfRows = rows;
-            });
-        }
-
-        // Use the backend's canonical file-path helpers.
-        // pdfRows must contain records belonging only to this test's book IDs.
-
-        for (const row of pdfRows) {
-            if (row.pdf_stored_name) {
-                await cleanupStep(
-                    `PDF ${row.pdf_stored_name}`,
-                    async () => {
-                        await fs.unlink(
-                            resolvePublicPdfPath(row.pdf_stored_name)
-                        );
-                    }
-                );
-            }
-
-            if (row.processed_content_path) {
-                const processedName = path.basename(
-                    row.processed_content_path
-                );
-
-                await cleanupStep(
-                    `processed content ${processedName}`,
-                    async () => {
-                        await fs.unlink(
-                            resolvePublicProcessedPath(processedName)
-                        );
-                    }
-                );
-            }
-
-            if (row.pdf_stored_name) {
-                const imagesDirName = buildPublicImagesDirName(
-                    row.pdf_stored_name
-                );
-
-                await cleanupStep(
-                    `images directory ${imagesDirName}`,
-                    async () => {
-                        await fs.rm(
-                            resolvePublicImagesDir(imagesDirName),
-                            {
-                                recursive: true,
-                                force: true,
-                            }
-                        );
-                    }
-                );
-            }
-        }
-
-        // Independent operations: failure in one must not skip the next.
-        await cleanupStep('test user', async () => {
-            if (userEmail) {
-                await pool.query(
-                    'DELETE FROM users WHERE email = ?',
-                    [userEmail]
-                );
-            }
-        });
-
-        await cleanupStep('test books', async () => {
-            if (bookIds.length > 0) {
-                await pool.query(
-                    `DELETE FROM books
-                     WHERE book_id IN (${bookIds.map(() => '?').join(',')})`,
-                    bookIds
-                );
-            }
-        });
-
-        await cleanupStep('database pool close', async () => {
-            await pool.end();
-        });
-    }
-
-    console.log(`\n=== All Workflow Tests Finished: ${passed} passed, ${failed} failed ===`);
-    process.exitCode = (failed > 0 || cleanupFailed) ? 1 : 0;
+    const archivedDocument = await request('GET', `/api/books/${bookAId}/document`, { token: userToken });
+    assert('Normal user cannot read an archived document (404)', archivedDocument.status === 404, archivedDocument.status);
 }
 
-run().catch((err) => {
-    console.error('Workflow test failed:', err);
+async function main() {
+    let fatalError = null;
+
+    try {
+        await runWorkflow();
+    } catch (error) {
+        fatalError = error;
+        console.error('[ERROR] Publishing workflow stopped:', error.message);
+    } finally {
+        try {
+            await closeServer(server);
+        } catch (error) {
+            fatalError = fatalError || error;
+            console.error('[CLEANUP ERROR] Could not close the in-process test server:', error.message);
+        }
+
+        try {
+            // Cleanup only runs after the DB target was independently verified.
+            if (adminUserId || createdBookIds.size > 0 || testUserId || testUserEmail) {
+                await verifyDatabaseTarget();
+                await cleanupTestRecords();
+            }
+        } catch (error) {
+            fatalError = fatalError || error;
+            console.error('[CLEANUP ERROR] Test-owned data cleanup failed:', error.message);
+        }
+
+        try {
+            await pool.end();
+        } catch (error) {
+            fatalError = fatalError || error;
+            console.error('[CLEANUP ERROR] Could not close the database pool:', error.message);
+        }
+    }
+
+    console.log(`\n=== Publishing Workflow Result: ${passed} passed, ${failed} failed ===`);
+    if (fatalError || failed > 0) {
+        process.exitCode = 1;
+    } else {
+        process.exitCode = 0;
+    }
+}
+
+main().catch((error) => {
+    // Last-resort handler; main's finally normally handles all resource cleanup.
+    console.error('[FATAL] Unexpected test runner error:', error.message);
     process.exitCode = 1;
 });

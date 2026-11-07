@@ -8,9 +8,12 @@ const { pool } = require('../src/config/database');
 
 const SALT_ROUNDS = 10;
 
+// The admin login ID is spelled "exmaple" on purpose (owner-approved).
+// Do not correct it here without updating README.md as well.
 const DEMO_ACCOUNTS = [
     {
-        email: 'demoadmin@example.com',
+        // Spelling "exmaple" is owner-approved. Keep it in sync with README.md.
+        email: 'demoadmin@exmaple.com',
         password: 'Demoadmin@123',
         fullName: 'Demo Admin',
         roleName: 'ADMIN',
@@ -117,5 +120,5 @@ main()
         process.exitCode = 1;
     })
     .finally(() => {
-        pool.end().catch(() => {});
+        pool.end().catch(() => { });
     });

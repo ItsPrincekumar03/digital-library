@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "seed:dev": "node scripts/dev-seed.js",
     "migrate": "node scripts/migrate.js",
-    "test": "node ../tests/publishing-workflow.test.js",
+    "test": "node ../tests/publishing-workflow.test.js && npm run test:reader && npm run test:archival && npm run test:api",
+    "test:reader": "node ../tests/reader-availability.test.js",
     "test:archival": "node ../tests/archival-verification.js",
     "test:api": "node ../tests/api-categories-authors.test.js"
   },

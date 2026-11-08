@@ -60,8 +60,8 @@ function verifyColumnDefinition(actual, expected, tableName, columnName) {
         throw new Error(`[MIGRATE] ${tableName}.${columnName} is missing after migration.`);
     }
 
-    const actualType = String(actual.COLUMN_TYPE || '').toLowerCase();
-    const expectedType = String(expected.columnType).toLowerCase();
+    const actualType = String(actual.COLUMN_TYPE || '').toLowerCase().replace(/^bigint\(\d+\)/, 'bigint');
+    const expectedType = String(expected.columnType).toLowerCase().replace(/^bigint\(\d+\)/, 'bigint');
     const actualNullable = String(actual.IS_NULLABLE).toUpperCase();
 
     if (actualType !== expectedType || actualNullable !== expected.nullable) {
@@ -102,7 +102,7 @@ async function ensureColumn(connection, expectedDatabase, tableName, columnName,
 async function readIndexDefinition(connection, expectedDatabase, tableName, indexName) {
     await assertDatabase(connection, expectedDatabase);
     const [rows] = await connection.query(
-        `SELECT INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME, NON_UNIQUE
+        `SELECT INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME, NON_UNIQUE, SUB_PART
            FROM information_schema.STATISTICS
           WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = ?
@@ -115,6 +115,7 @@ async function readIndexDefinition(connection, expectedDatabase, tableName, inde
     return {
         columns: rows.map((row) => row.COLUMN_NAME),
         unique: Number(rows[0].NON_UNIQUE) === 0,
+        fullColumns: rows.every((row) => row.SUB_PART === null),
     };
 }
 
@@ -122,7 +123,7 @@ function assertIndexDefinition(actual, expectedColumns, expectedUnique, tableNam
     const matchesColumns = actual.columns.length === expectedColumns.length &&
         actual.columns.every((column, index) => column === expectedColumns[index]);
 
-    if (!matchesColumns || actual.unique !== expectedUnique) {
+    if (!actual.fullColumns || !matchesColumns || actual.unique !== expectedUnique) {
         throw new Error(
             `[MIGRATE] Index mismatch for ${tableName}.${indexName}: expected ` +
             `${expectedUnique ? 'UNIQUE ' : ''}(${expectedColumns.join(', ')}), got ` +
@@ -162,15 +163,22 @@ async function ensureIndex(
 async function verifyPrivateLibraryForeignKey(connection, expectedDatabase) {
     await assertDatabase(connection, expectedDatabase);
     const [rows] = await connection.query(
-        `SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-           FROM information_schema.KEY_COLUMN_USAGE
-          WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = 'private_library_files'
-            AND CONSTRAINT_NAME = 'fk_private_library_files_owner'`
+        `SELECT k.COLUMN_NAME, k.REFERENCED_TABLE_SCHEMA, k.REFERENCED_TABLE_NAME,
+                k.REFERENCED_COLUMN_NAME, r.DELETE_RULE, r.UPDATE_RULE
+           FROM information_schema.KEY_COLUMN_USAGE k
+           JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+             ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
+            AND r.TABLE_NAME = k.TABLE_NAME
+            AND r.CONSTRAINT_NAME = k.CONSTRAINT_NAME
+          WHERE k.TABLE_SCHEMA = DATABASE()
+            AND k.TABLE_NAME = 'private_library_files'
+            AND k.CONSTRAINT_NAME = 'fk_private_library_files_owner'`
     );
 
     const match = rows.some((row) =>
         row.COLUMN_NAME === 'owner_id' &&
+        row.REFERENCED_TABLE_SCHEMA === expectedDatabase &&
+        row.DELETE_RULE === 'CASCADE' && row.UPDATE_RULE === 'CASCADE' &&
         row.REFERENCED_TABLE_NAME === 'users' &&
         row.REFERENCED_COLUMN_NAME === 'user_id'
     );

@@ -7,12 +7,6 @@ if (!dbConfig.database || typeof dbConfig.database !== 'string' || !dbConfig.dat
     throw new Error('Database configuration error: DB_NAME must be set before the database pool is created.');
 }
 
-if (process.env.TEST_DB_NAME && process.env.TEST_DB_NAME !== dbConfig.database) {
-    throw new Error(
-        `Database isolation error: TEST_DB_NAME (${process.env.TEST_DB_NAME}) does not match DB_NAME (${dbConfig.database}).`
-    );
-}
-
 const pool = mysql.createPool({
     host: dbConfig.host,
     port: dbConfig.port,
@@ -35,10 +29,15 @@ async function testConnection() {
         connection = await pool.getConnection();
         await connection.ping();
 
-        const [rows] = await connection.query('SELECT DATABASE() AS current_db');
+        const [rows] = await connection.query('SELECT DATABASE() AS current_db, @@lower_case_table_names AS lower_case_table_names');
         const currentDatabase = rows[0]?.current_db;
 
-        if (currentDatabase !== dbConfig.database) {
+        const caseInsensitive = [1, 2].includes(Number(rows[0]?.lower_case_table_names));
+        const namesMatch = typeof currentDatabase === 'string' && (caseInsensitive
+            ? currentDatabase.toLowerCase() === dbConfig.database.toLowerCase()
+            : currentDatabase === dbConfig.database);
+
+        if (!namesMatch) {
             return {
                 success: false,
                 message: 'Database connection failed: selected database does not match DB_NAME.',

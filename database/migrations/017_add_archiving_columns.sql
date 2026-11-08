@@ -3,7 +3,8 @@
 -- Migration 017 (authors.is_archived, categories.is_archived, books.cover_path,
 -- books.publication_date) is applied by backend/scripts/migrate.js, which checks
 -- each column before adding it and is safe to re-run.
--- Running this file after migrate.js fails with "Duplicate column name".
+-- The original SQL risked "Duplicate column name" when columns already existed.
+-- This current comment-only file cannot produce that error.
 -- database/schema.sql already defines these columns for fresh installs.
 -- Kept as history only. This file contains no executable statements.
 -- =====================================================

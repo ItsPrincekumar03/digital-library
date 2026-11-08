@@ -3,7 +3,8 @@
 -- Migration 019 (books.pdf_stored_name, books.pdf_uploaded_at and index
 -- idx_books_pdf_stored_name) is applied by backend/scripts/migrate.js, which
 -- checks each column and index before adding it and is safe to re-run.
--- Running this file after migrate.js fails with "Duplicate column name".
+-- The original SQL risked "Duplicate column name" when columns already existed.
+-- This current comment-only file cannot produce that error.
 -- database/schema.sql already defines these columns and index for fresh installs.
 -- Kept as history only. This file contains no executable statements.
 -- =====================================================

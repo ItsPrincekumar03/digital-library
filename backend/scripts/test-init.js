@@ -37,7 +37,8 @@ function validateTarget(dbName) {
 }
 
 /** Split SQL on semicolons outside quoted values and identifiers. */
-function splitSqlStatements(sql) {
+function splitSqlStatements(sql, sqlMode = '') {
+    const backslashEscapes = !sqlMode.toUpperCase().split(',').includes('NO_BACKSLASH_ESCAPES');
     const statements = [];
     let current = '';
     let quote = null;
@@ -67,7 +68,9 @@ function splitSqlStatements(sql) {
 
         if (quote) {
             current += char;
-            if (char === '\\' && index + 1 < sql.length) {
+            if (backslashEscapes && quote !== '`' &&
+                !(quote === '"' && sqlMode.toUpperCase().split(',').includes('ANSI_QUOTES')) &&
+                char === '\\' && index + 1 < sql.length) {
                 current += sql[index + 1];
                 index += 1;
             } else if (char === quote) {
@@ -127,16 +130,20 @@ function splitSqlStatements(sql) {
     return statements;
 }
 
-function readStatements(filePath) {
+function readStatements(filePath, sqlMode = '') {
     if (!fs.existsSync(filePath)) {
         throw new Error(`Required SQL file was not found: ${filePath}`);
     }
 
-    return splitSqlStatements(fs.readFileSync(filePath, 'utf8'));
+    return splitSqlStatements(fs.readFileSync(filePath, 'utf8'), sqlMode);
 }
 
-/** Remove single/double-quoted values while retaining quoted identifiers. */
-function maskSqlStringLiterals(sql) {
+/** Mask string literals using the session SQL mode, retaining identifiers. */
+function maskSqlStringLiterals(sql, sqlMode = '') {
+    const modes = new Set(sqlMode.toUpperCase().split(',').map((mode) => mode.trim()));
+    const ansiQuotes = modes.has('ANSI_QUOTES');
+    const backslashEscapes = !modes.has('NO_BACKSLASH_ESCAPES');
+    let identifierQuote = null;
     let output = '';
     let quote = null;
 
@@ -144,10 +151,25 @@ function maskSqlStringLiterals(sql) {
         const char = sql[index];
         const next = sql[index + 1];
 
+        if (identifierQuote) {
+            output += char;
+            if (char === identifierQuote) {
+                if (next === identifierQuote) {
+                    output += next;
+                    index += 1;
+                } else identifierQuote = null;
+            }
+            continue;
+        }
+        if (!quote && (char === '`' || (ansiQuotes && char === '"'))) {
+            identifierQuote = char;
+            output += char;
+            continue;
+        }
         if (quote) {
             output += ' ';
 
-            if (char === '\\' && index + 1 < sql.length) {
+            if (backslashEscapes && char === '\\' && index + 1 < sql.length) {
                 output += ' ';
                 index += 1;
             } else if (char === quote) {
@@ -175,11 +197,11 @@ function maskSqlStringLiterals(sql) {
     return output;
 }
 
-function assertNoPrimarySchemaReferences(statement) {
-    const searchable = maskSqlStringLiterals(statement);
+function assertNoPrimarySchemaReferences(statement, sqlMode = '') {
+    const searchable = maskSqlStringLiterals(statement, sqlMode);
 
     const primarySchemaQualifier =
-        /(?:^|[^A-Za-z0-9_$])(?:`digital_library`|digital_library)\s*\.\s*(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)/i;
+        /(?:^|[^A-Za-z0-9_$])(?:`digital_library`|"digital_library"|digital_library)\s*\.\s*(?:`[^`]+`|"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)/i;
 
     if (primarySchemaQualifier.test(searchable)) {
         throw new Error(
@@ -189,6 +211,9 @@ function assertNoPrimarySchemaReferences(statement) {
 }
 
 async function verifyDatabase(connection, expectedDatabase) {
+    if (expectedDatabase !== ALLOWED_TEST_DB) {
+        throw new Error(`Only ${ALLOWED_TEST_DB} is permitted.`);
+    }
     const [rows] = await connection.query(
         'SELECT DATABASE() AS current_db'
     );
@@ -309,18 +334,24 @@ function parseCreateTableDefinition(statement) {
 
         if (columnMatch &&
             !/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN|CHECK)\b/i.test(definition)) {
-            columns.push(unquoteIdentifier(columnMatch[1]));
+            const columnName = unquoteIdentifier(columnMatch[1]);
+            columns.push(columnName);
+            if (/\bPRIMARY\s+KEY\b/i.test(definition.slice(columnMatch[0].length))) {
+                indexes.push({ name: 'PRIMARY', columns: [columnName], unique: true });
+            }
             continue;
         }
 
         const indexMatch =
-            /^(?:(?:CONSTRAINT\s+`[^`]+`\s+)?)(PRIMARY\s+KEY|UNIQUE(?:\s+KEY)?|KEY|INDEX)\s*(?:`([^`]+)`)?\s*\(([^)]+)\)/i.exec(definition);
+            /^(?:CONSTRAINT\s+(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)\s+)?(PRIMARY\s+KEY|UNIQUE(?:\s+(?:KEY|INDEX))?|KEY|INDEX)\s*(`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)?\s*\(([^)]+)\)/i.exec(definition);
 
         if (indexMatch) {
             const kind = indexMatch[1].toUpperCase();
+            const constraintName = /^CONSTRAINT\s+(`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)\s+/i.exec(definition);
             const name = kind.startsWith('PRIMARY')
                 ? 'PRIMARY'
-                : indexMatch[2];
+                : indexMatch[2] ? unquoteIdentifier(indexMatch[2])
+                    : constraintName ? unquoteIdentifier(constraintName[1]) : parseColumnList(indexMatch[3])[0];
 
             indexes.push({
                 name,
@@ -334,7 +365,7 @@ function parseCreateTableDefinition(statement) {
 }
 async function readIndexDefinition(connection, tableName, indexName) {
     const [rows] = await connection.query(
-        `SELECT INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME, NON_UNIQUE
+        `SELECT INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME, NON_UNIQUE, SUB_PART
            FROM information_schema.STATISTICS
           WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = ?
@@ -347,6 +378,7 @@ async function readIndexDefinition(connection, tableName, indexName) {
     return {
         columns: rows.map((row) => row.COLUMN_NAME),
         unique: Number(rows[0].NON_UNIQUE) === 0,
+        fullColumns: rows.every((row) => row.SUB_PART === null),
     };
 }
 
@@ -358,7 +390,7 @@ async function verifyIndexDefinition(connection, tableName, expectedIndex) {
 
     const columnsMatch = actual.columns.length === expectedIndex.columns.length &&
         actual.columns.every((column, index) => column === expectedIndex.columns[index]);
-    if (!columnsMatch || actual.unique !== expectedIndex.unique) {
+    if (!actual.fullColumns || !columnsMatch || actual.unique !== expectedIndex.unique) {
         throw new Error(
             `Schema mismatch for ${tableName}.${expectedIndex.name}: expected ` +
             `${expectedIndex.unique ? 'UNIQUE ' : ''}(${expectedIndex.columns.join(', ')}), got ` +
@@ -393,7 +425,7 @@ async function verifyCreateTableDefinition(connection, targetDatabase, definitio
     await verifyDatabase(connection, targetDatabase);
 
     const [rows] = await connection.query(
-        `SELECT COLUMN_NAME
+        `SELECT COLUMN_NAME, COLUMN_TYPE, DATA_TYPE, IS_NULLABLE
            FROM information_schema.COLUMNS
           WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = ?`,
@@ -409,6 +441,14 @@ async function verifyCreateTableDefinition(connection, targetDatabase, definitio
         throw new Error(
             `Existing table ${definition.tableName} is missing required column(s): ${missingColumns.join(', ')}.`
         );
+    }
+
+    if (definition.tableName === 'books') {
+        const status = rows.find((row) => row.COLUMN_NAME === 'status');
+        if (status && (status.DATA_TYPE !== 'enum' ||
+            !/'ARCHIVED'/.test(status.COLUMN_TYPE))) {
+            throw new Error('Schema mismatch for books.status: enum must include ARCHIVED.');
+        }
     }
 
     // These indexes are explicitly created/validated by migrate.js after all
@@ -451,7 +491,8 @@ function parseCreateIndexDefinition(statement) {
 async function applySchema(connection, targetDatabase) {
     console.log('\n[TEST-INIT] Applying schema definitions...');
     const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
-    const statements = readStatements(schemaPath);
+    const [[{ sql_mode: sqlMode }]] = await connection.query('SELECT @@SESSION.sql_mode AS sql_mode');
+    const statements = readStatements(schemaPath, sqlMode);
     let created = 0;
     let alreadyPresent = 0;
 
@@ -464,7 +505,7 @@ async function applySchema(connection, targetDatabase) {
             continue;
         }
 
-        assertNoPrimarySchemaReferences(statement);
+        assertNoPrimarySchemaReferences(statement, sqlMode);
 
         if (/^CREATE\s+TABLE\b/i.test(statement)) {
             const definition = parseCreateTableDefinition(statement);
@@ -480,7 +521,7 @@ async function applySchema(connection, targetDatabase) {
             const definition = parseCreateIndexDefinition(statement);
             const existing = await readIndexDefinition(connection, definition.tableName, definition.indexName);
             if (existing) {
-                const matches = existing.columns.length === definition.columns.length &&
+                const matches = existing.fullColumns && existing.columns.length === definition.columns.length &&
                     existing.columns.every((column, index) => column === definition.columns[index]) &&
                     existing.unique === definition.unique;
                 if (!matches) {
@@ -493,7 +534,7 @@ async function applySchema(connection, targetDatabase) {
             await verifyDatabase(connection, targetDatabase);
             await connection.query(statement);
             const verified = await readIndexDefinition(connection, definition.tableName, definition.indexName);
-            if (!verified || verified.columns.length !== definition.columns.length ||
+            if (!verified || !verified.fullColumns || verified.columns.length !== definition.columns.length ||
                 !verified.columns.every((column, index) => column === definition.columns[index]) ||
                 verified.unique !== definition.unique) {
                 throw new Error(`Created index ${definition.tableName}.${definition.indexName} did not match its declared definition.`);
@@ -511,7 +552,8 @@ async function applySchema(connection, targetDatabase) {
 async function applySeed(connection, targetDatabase) {
     console.log('\n[TEST-INIT] Applying seed records using the SQL file as authored...');
     const seedPath = path.resolve(__dirname, '..', '..', 'database', 'seed.sql');
-    const statements = readStatements(seedPath);
+    const [[{ sql_mode: sqlMode }]] = await connection.query('SELECT @@SESSION.sql_mode AS sql_mode');
+    const statements = readStatements(seedPath, sqlMode);
     let executed = 0;
 
     for (const statement of statements) {
@@ -522,7 +564,7 @@ async function applySeed(connection, targetDatabase) {
             throw new Error(`Unexpected statement in seed.sql; refusing to execute: ${statement.slice(0, 100)}`);
         }
 
-        assertNoPrimarySchemaReferences(statement);
+        assertNoPrimarySchemaReferences(statement, sqlMode);
         await verifyDatabase(connection, targetDatabase);
         await connection.query(statement);
         executed += 1;

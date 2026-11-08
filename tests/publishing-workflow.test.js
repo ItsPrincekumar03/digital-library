@@ -37,6 +37,7 @@ function validateTestEnvironment() {
     return { expectedDatabase, adminEmail, adminPassword };
 }
 
+require('../backend/src/config/env');
 const testConfig = validateTestEnvironment();
 const dbConfig = require('../backend/src/config/db.config');
 if (dbConfig.database !== testConfig.expectedDatabase) {
@@ -188,48 +189,63 @@ async function cleanupTestRecords() {
         for (const row of rows) ids.add(Number(row.book_id));
     }
 
-    const bookIds = [...ids];
-    if (bookIds.length > 0) {
-        const placeholders = bookIds.map(() => '?').join(', ');
-        const [bookRows] = await pool.query(
-            `SELECT book_id, pdf_stored_name, processed_content_path
-               FROM books
-              WHERE book_id IN (${placeholders})`,
-            bookIds
-        );
+    let bookCleanupError;
+    try {
+        const bookIds = [...ids];
+        if (bookIds.length > 0) {
+            const placeholders = bookIds.map(() => '?').join(', ');
+            const [bookRows] = await pool.query(
+                `SELECT book_id, pdf_stored_name, processed_content_path
+                   FROM books
+                  WHERE book_id IN (${placeholders})`,
+                bookIds
+            );
 
-        // Remove only files with the application's generated UUID names.
-        // If file cleanup fails, retain the DB rows and report the failure.
-        await cleanupGeneratedPdfArtifacts(bookRows);
-        await pool.query(`DELETE FROM books WHERE book_id IN (${placeholders})`, bookIds);
-        console.log(`[CLEANUP] Removed ${bookIds.length} test-owned book record(s).`);
+            // Remove only files with the application's generated UUID names.
+            // If file cleanup fails, retain the DB rows and report the failure.
+            await cleanupGeneratedPdfArtifacts(bookRows);
+            await pool.query(`DELETE FROM chapters WHERE book_id IN (${placeholders})`, bookIds);
+            await pool.query(`DELETE FROM books WHERE book_id IN (${placeholders})`, bookIds);
+            console.log(`[CLEANUP] Removed ${bookIds.length} test-owned book record(s).`);
+        }
+    } catch (error) {
+        bookCleanupError = error;
     }
 
-    // The registration endpoint may commit the user but return an incomplete
-    // response (or the HTTP connection may fail after the commit). In that
-    // case testUserId is unavailable, so recover the row by its unique,
-    // per-run generated email before cleanup.
-    if (testUserEmail) {
-        let cleanupUserId = Number.isSafeInteger(testUserId) && testUserId > 0
-            ? testUserId
-            : null;
+    try {
+        // The registration endpoint may commit the user but return an incomplete
+        // response (or the HTTP connection may fail after the commit). In that
+        // case testUserId is unavailable, so recover the row by its unique,
+        // per-run generated email before cleanup.
+        if (testUserEmail) {
+            let cleanupUserId = Number.isSafeInteger(testUserId) && testUserId > 0
+                ? testUserId
+                : null;
 
-        if (!cleanupUserId) {
-            const [userRows] = await pool.query(
-                'SELECT user_id FROM users WHERE email = ? LIMIT 1',
-                [testUserEmail]
-            );
-            cleanupUserId = userRows[0] ? Number(userRows[0].user_id) : null;
-        }
+            if (!cleanupUserId) {
+                const [userRows] = await pool.query(
+                    'SELECT user_id FROM users WHERE email = ? LIMIT 1',
+                    [testUserEmail]
+                );
+                cleanupUserId = userRows[0] ? Number(userRows[0].user_id) : null;
+            }
 
-        if (Number.isSafeInteger(cleanupUserId) && cleanupUserId > 0) {
-            await pool.query(
-                'DELETE FROM users WHERE user_id = ? AND email = ?',
-                [cleanupUserId, testUserEmail]
-            );
-            console.log('[CLEANUP] Removed the test-created user when present.');
+            if (Number.isSafeInteger(cleanupUserId) && cleanupUserId > 0) {
+                await pool.query(
+                    'DELETE FROM users WHERE user_id = ? AND email = ?',
+                    [cleanupUserId, testUserEmail]
+                );
+                console.log('[CLEANUP] Removed the test-created user when present.');
+            }
         }
+    } catch (error) {
+        if (bookCleanupError) {
+            throw new AggregateError([bookCleanupError, error],
+                `Book cleanup failed: ${bookCleanupError.message}; user cleanup failed: ${error.message}`);
+        }
+        throw error;
     }
+    if (bookCleanupError) throw bookCleanupError;
 }
 
 function createMinimalPdf() {

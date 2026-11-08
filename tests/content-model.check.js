@@ -19,6 +19,10 @@ if (process.env.TEST_DB_NAME !== 'digital_library_test') {
 }
 
 process.env.DB_NAME = process.env.TEST_DB_NAME;
+const dbConfig = require('../backend/src/config/db.config');
+if (process.env.TEST_DB_NAME !== dbConfig.database) {
+    throw new Error('Blocked: configured DB_NAME does not match TEST_DB_NAME.');
+}
 
 const BASE = process.env.BASE_URL;
 

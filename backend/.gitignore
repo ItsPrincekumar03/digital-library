@@ -1,2 +1,11 @@
 node_modules/
 .env
+
+
+# Module 17 - Protect local scratch files and private user uploads
+/scratch/
+/backend/uploads/private/
+
+# Local environment files and secrets
+/.env
+/backend/.env

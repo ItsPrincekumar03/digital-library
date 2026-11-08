@@ -1,12 +1,9 @@
-USE digital_library;
-
--- Module 13.1 — original PDF storage for admin-managed public books.
--- NOT APPLIED. Run manually during verification.
--- Verified 2026-10-12: pdf_original_name and pdf_size already exist in the
--- live database, so only the two missing columns are added here.
--- pdf_path and processed_content_path are legacy columns and are left untouched.
-ALTER TABLE books
-  ADD COLUMN pdf_stored_name VARCHAR(255) NULL,
-  ADD COLUMN pdf_uploaded_at DATETIME NULL;
-
-CREATE INDEX idx_books_pdf_stored_name ON books (pdf_stored_name);
+-- =====================================================
+-- SUPERSEDED. Do not run this file.
+-- Migration 019 (books.pdf_stored_name, books.pdf_uploaded_at and index
+-- idx_books_pdf_stored_name) is applied by backend/scripts/migrate.js, which
+-- checks each column and index before adding it and is safe to re-run.
+-- Running this file after migrate.js fails with "Duplicate column name".
+-- database/schema.sql already defines these columns and index for fresh installs.
+-- Kept as history only. This file contains no executable statements.
+-- =====================================================

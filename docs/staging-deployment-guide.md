@@ -116,11 +116,37 @@ FLUSH PRIVILEGES;
 ```
 
 ### Step 5: Run Database Migrations
-Initialize the schema and apply all migration files:
+
+The project uses separate procedures for fresh database installation and existing database upgrades.
+
+**Existing database upgrade:**
+
+`npm run migrate` upgrades an existing database. It checks for and adds the supported archiving columns, PDF columns and index, and the `private_library_files` table only when they are missing.
+
+The migration runner:
+
+- Does not create the complete base database schema.
+- Does not execute numbered SQL files from `database/migrations`.
+- Checks for missing supported database structures.
+- Can be run again to check for missing supported structures.
+
+Run it from the backend folder:
+
 ```bash
 cd /var/www/digital-library/backend
 npm run migrate
 ```
+
+**Fresh database installation:**
+
+Perform these steps in order:
+
+1. Create the MySQL database using the documented database creation procedure.
+2. Run `database/schema.sql` from the project root to create the complete base schema.
+3. Run `npm run migrate` from the backend folder to check and add any missing supported structures.
+4. For development environments only, run `npm run seed:dev` from the backend folder with `NODE_ENV=development`.
+
+Do not run the development seed in production.
 
 Verify that all tables exist:
 ```bash
@@ -135,7 +161,13 @@ npm run seed:dev
 ```
 Or create a staging administrator using the registration API and promote via MySQL:
 ```sql
-UPDATE users SET role = 'ADMIN' WHERE email = 'admin@staging.digitallibrary.example.com';
+-- Promote an existing staging user to ADMIN.
+-- The users table has no role column. The role is stored as role_id,
+-- which references roles.role_id. Run this against the STAGING database only,
+-- and only after confirming the email address and ADMIN role.
+UPDATE users
+SET role_id = (SELECT role_id FROM roles WHERE role_name = 'ADMIN')
+WHERE email = 'admin@staging.digitallibrary.example.com';
 ```
 
 ---

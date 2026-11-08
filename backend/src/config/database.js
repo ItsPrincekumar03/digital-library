@@ -1,8 +1,18 @@
+'use strict';
+
 const mysql = require('mysql2/promise');
 const dbConfig = require('./db.config');
 
-// A connection pool is better than a single connection:
-// it reuses connections instead of opening a new one per query.
+if (!dbConfig.database || typeof dbConfig.database !== 'string' || !dbConfig.database.trim()) {
+    throw new Error('Database configuration error: DB_NAME must be set before the database pool is created.');
+}
+
+if (process.env.TEST_DB_NAME && process.env.TEST_DB_NAME !== dbConfig.database) {
+    throw new Error(
+        `Database isolation error: TEST_DB_NAME (${process.env.TEST_DB_NAME}) does not match DB_NAME (${dbConfig.database}).`
+    );
+}
+
 const pool = mysql.createPool({
     host: dbConfig.host,
     port: dbConfig.port,
@@ -14,20 +24,40 @@ const pool = mysql.createPool({
     queueLimit: 0,
 });
 
-// Simple helper to verify the DB is reachable.
-// Used at startup and by the /health/db test route.
+/**
+ * Verify connectivity and confirm that MySQL selected the configured schema.
+ * The borrowed connection is released on both success and failure.
+ */
 async function testConnection() {
+    let connection;
+
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         await connection.ping();
-        connection.release();
-        return { success: true, message: 'Database connected successfully.' };
+
+        const [rows] = await connection.query('SELECT DATABASE() AS current_db');
+        const currentDatabase = rows[0]?.current_db;
+
+        if (currentDatabase !== dbConfig.database) {
+            return {
+                success: false,
+                message: 'Database connection failed: selected database does not match DB_NAME.',
+            };
+        }
+
+        return {
+            success: true,
+            message: 'Database connected successfully.',
+        };
     } catch (error) {
+        // Do not expose connection strings, usernames, hosts, or passwords in health output.
         return {
             success: false,
             message: 'Database connection failed.',
-            error: error.message,
+            error: error.code || 'DATABASE_CONNECTION_ERROR',
         };
+    } finally {
+        if (connection) connection.release();
     }
 }
 

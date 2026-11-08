@@ -1,516 +1,589 @@
-/**
- * Safe Test Database Initialization Script
- *
- * Purpose: Prepare and validate an isolated test database (digital_library_test)
- *          without risking writes to the primary digital_library database.
- *
- * Usage:
- *   TEST_DB_NAME=digital_library_test NODE_ENV=development node backend/scripts/test-init.js
- *
- * Safety guarantees:
- *   1. Requires TEST_DB_NAME env var (rejects if missing or empty)
- *   2. Rejects 'digital_library' as a target (primary database)
- *   3. Only accepts 'digital_library_test' as a valid target
- *   4. Connects directly to the specified database (no .env DB_NAME fallback)
- *   5. Verifies SELECT DATABASE() before every write operation
- *   6. Filters out CREATE DATABASE and USE statements from SQL files
- *   7. Uses CREATE TABLE IF NOT EXISTS and INSERT IGNORE for idempotency
- *   8. Does NOT drop, truncate, or recreate any tables
- *   9. Does NOT delete or modify existing data
- *   10. Aborts immediately if any isolation check fails
- *
- * This script does NOT modify application code, security config, or SQL files.
- */
-
 'use strict';
+
+/**
+ * Initialize only the existing, isolated Digital Library test database.
+ *
+ * Safety rules:
+ * - TEST_DB_NAME must be exactly digital_library_test.
+ * - Connects directly to that named database; it does not use DB_NAME as a fallback.
+ * - Never creates, drops, truncates, resets, or switches databases.
+ * - Ignores CREATE DATABASE / USE / SET statements in the reusable SQL files.
+ * - Rejects explicit references to the primary digital_library schema.
+ * - Validates existing table columns and declared indexes before accepting them.
+ * - Executes seed INSERT statements as authored; it does not blanket-convert them
+ *   to INSERT IGNORE.
+ */
 
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
-// Load .env (does not override existing env vars)
 require(path.resolve(__dirname, '..', 'src', 'config', 'env'));
 
-// ── Safety constants ────────────────────────────────────────────────────────
 const ALLOWED_TEST_DB = 'digital_library_test';
 const FORBIDDEN_DB = 'digital_library';
 
-// ── Safety validation ───────────────────────────────────────────────────────
 function validateTarget(dbName) {
-    if (!dbName || typeof dbName !== 'string' || dbName.trim() === '') {
+    if (typeof dbName !== 'string' || dbName.trim() === '') {
+        throw new Error('TEST_DB_NAME is required. Set it to digital_library_test.');
+    }
+
+    const target = dbName.trim();
+    if (target.toLowerCase() === FORBIDDEN_DB || target !== ALLOWED_TEST_DB) {
+        throw new Error(`Blocked database target "${target}". Only "${ALLOWED_TEST_DB}" is permitted.`);
+    }
+
+    return target;
+}
+
+/** Split SQL on semicolons outside quoted values and identifiers. */
+function splitSqlStatements(sql) {
+    const statements = [];
+    let current = '';
+    let quote = null;
+    let lineComment = false;
+    let blockComment = false;
+
+    for (let index = 0; index < sql.length; index += 1) {
+        const char = sql[index];
+        const next = sql[index + 1];
+
+        if (lineComment) {
+            if (char === '\n') {
+                lineComment = false;
+                current += '\n';
+            }
+            continue;
+        }
+
+        if (blockComment) {
+            if (char === '*' && next === '/') {
+                blockComment = false;
+                index += 1;
+                current += ' ';
+            }
+            continue;
+        }
+
+        if (quote) {
+            current += char;
+            if (char === '\\' && index + 1 < sql.length) {
+                current += sql[index + 1];
+                index += 1;
+            } else if (char === quote) {
+                if (next === quote) {
+                    current += next;
+                    index += 1;
+                } else {
+                    quote = null;
+                }
+            }
+            continue;
+        }
+
+        if (char === '-' && next === '-' &&
+            (index + 2 >= sql.length || /\s/.test(sql[index + 2]))) {
+            lineComment = true;
+            index += 1;
+            continue;
+        }
+
+        if (char === '#') {
+            lineComment = true;
+            continue;
+        }
+
+        if (char === '/' && next === '*') {
+            blockComment = true;
+            index += 1;
+            continue;
+        }
+
+        if (char === "'" || char === '"' || char === '`') {
+            quote = char;
+            current += char;
+            continue;
+        }
+
+        if (char === ';') {
+            const statement = current.trim();
+            if (statement) statements.push(statement);
+            current = '';
+            continue;
+        }
+
+        current += char;
+    }
+
+    if (quote || blockComment) {
         throw new Error(
-            '[TEST-INIT] BLOCKED: TEST_DB_NAME is not set or empty.'
+            'SQL file contains an unterminated quoted value or block comment.'
         );
     }
 
-    const trimmed = dbName.trim();
+    const finalStatement = current.trim();
+    if (finalStatement) statements.push(finalStatement);
 
-    if (trimmed === FORBIDDEN_DB) {
+    return statements;
+}
+
+function readStatements(filePath) {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`Required SQL file was not found: ${filePath}`);
+    }
+
+    return splitSqlStatements(fs.readFileSync(filePath, 'utf8'));
+}
+
+/** Remove single/double-quoted values while retaining quoted identifiers. */
+function maskSqlStringLiterals(sql) {
+    let output = '';
+    let quote = null;
+
+    for (let index = 0; index < sql.length; index += 1) {
+        const char = sql[index];
+        const next = sql[index + 1];
+
+        if (quote) {
+            output += ' ';
+
+            if (char === '\\' && index + 1 < sql.length) {
+                output += ' ';
+                index += 1;
+            } else if (char === quote) {
+                if (next === quote) {
+                    output += ' ';
+                    index += 1;
+                } else {
+                    quote = null;
+                }
+            }
+
+            continue;
+        }
+
+        if (char === "'" || char === '"') {
+            quote = char;
+            output += ' ';
+            continue;
+        }
+
+        // Backticks delimit identifiers, not string values.
+        output += char;
+    }
+
+    return output;
+}
+
+function assertNoPrimarySchemaReferences(statement) {
+    const searchable = maskSqlStringLiterals(statement);
+
+    const primarySchemaQualifier =
+        /(?:^|[^A-Za-z0-9_$])(?:`digital_library`|digital_library)\s*\.\s*(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)/i;
+
+    if (primarySchemaQualifier.test(searchable)) {
         throw new Error(
-            '[TEST-INIT] BLOCKED: Target database is the primary digital_library database.'
+            'Blocked SQL statement: explicit reference to the primary digital_library schema detected.'
+        );
+    }
+}
+
+async function verifyDatabase(connection, expectedDatabase) {
+    const [rows] = await connection.query(
+        'SELECT DATABASE() AS current_db'
+    );
+
+    const actualDatabase = rows[0]?.current_db;
+
+    if (actualDatabase !== expectedDatabase) {
+        throw new Error(
+            `Database isolation failure: expected "${expectedDatabase}", got "${actualDatabase}".`
         );
     }
 
-    if (trimmed !== ALLOWED_TEST_DB) {
-        throw new Error(
-            `[TEST-INIT] BLOCKED: Target database "${trimmed}" is not approved.`
-        );
+    return actualDatabase;
+}
+
+function splitTopLevelDefinitions(body) {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    let quote = null;
+
+    for (let index = 0; index < body.length; index += 1) {
+        const char = body[index];
+        const next = body[index + 1];
+
+        if (quote) {
+            current += char;
+
+            if (char === '\\' && index + 1 < body.length) {
+                current += body[index + 1];
+                index += 1;
+            } else if (char === quote) {
+                if (next === quote) {
+                    current += next;
+                    index += 1;
+                } else {
+                    quote = null;
+                }
+            }
+
+            continue;
+        }
+
+        if (char === "'" || char === '"' || char === '`') {
+            quote = char;
+            current += char;
+            continue;
+        }
+
+        if (char === '(') depth += 1;
+        if (char === ')') depth -= 1;
+
+        if (char === ',' && depth === 0) {
+            if (current.trim()) parts.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.trim()) parts.push(current.trim());
+
+    return parts;
+}
+
+function unquoteIdentifier(identifier) {
+    const trimmed = identifier.trim();
+
+    if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
+        return trimmed.slice(1, -1).replace(/``/g, '`');
     }
 
     return trimmed;
 }
 
-//
-function assertNoPrimarySchemaReferences(sql) {
-    // Fail closed if a statement explicitly references
-    // the primary database, including backtick-quoted names.
-    const primarySchemaReference =
-        /\b`?digital_library`?\s*\.\s*`?[A-Za-z_][A-Za-z0-9_$]*`?/i;
+function parseColumnList(value) {
+    return value
+        .split(',')
+        .map((column) =>
+            unquoteIdentifier(column.trim().split(/\s+/)[0])
+        );
+}
 
-    if (primarySchemaReference.test(sql)) {
+function parseCreateTableDefinition(statement) {
+    const header =
+        /^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*)\s*\(/i.exec(statement);
+
+    if (!header) {
         throw new Error(
-            '[TEST-INIT] BLOCKED: SQL references the primary ' +
-            'digital_library schema explicitly.'
+            'Could not safely parse CREATE TABLE statement; refusing to execute it.'
         );
     }
-}
 
-// ── SQL filtering ───────────────────────────────────────────────────────────
-function filterSql(sql) {
-    assertNoPrimarySchemaReferences(sql);
+    const openIndex = header[0].lastIndexOf('(');
+    const closeIndex = statement.lastIndexOf(')');
 
-    const lines = sql.split('\n');
-    const filtered = [];
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('--')) continue;
-        if (trimmed === '') continue;
-        const upper = trimmed.toUpperCase();
-        if (upper.startsWith('CREATE DATABASE')) {
-            console.log('[TEST-INIT]   Filtered: CREATE DATABASE directive');
-            continue;
-        }
-        if (upper.startsWith('USE ')) {
-            console.log('[TEST-INIT]   Filtered: USE directive');
-            continue;
-        }
-        if (upper.startsWith('DROP ')) {
-            throw new Error(
-                '[TEST-INIT] BLOCKED: DROP statement found in SQL file.'
-            );
-        }
-
-        if (upper.startsWith('TRUNCATE ')) {
-            throw new Error(
-                '[TEST-INIT] BLOCKED: TRUNCATE statement found in SQL file.'
-            );
-        }
-        if (upper.startsWith('SET FOREIGN_KEY_CHECKS') || upper.startsWith('SET NAMES')) {
-            continue;
-        }
-        filtered.push(line);
+    if (closeIndex <= openIndex) {
+        throw new Error(`Malformed CREATE TABLE statement for ${header[1]}.`);
     }
-    return filtered.join('\n');
-}
 
-async function verifyDatabase(conn, expectedDb) {
-    const [result] = await conn.query(
-        'SELECT DATABASE() AS current_db'
+    const tableName = unquoteIdentifier(header[1]);
+
+    if (tableName.includes('.')) {
+        throw new Error(
+            'Qualified table names are not permitted in test schema SQL.'
+        );
+    }
+
+    const body = statement.slice(openIndex + 1, closeIndex);
+    const definitions = splitTopLevelDefinitions(body);
+
+    const columns = [];
+    const indexes = [];
+
+    for (const definition of definitions) {
+        const columnMatch =
+            /^(`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*)\s+/i.exec(definition);
+
+        if (columnMatch &&
+            !/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN|CHECK)\b/i.test(definition)) {
+            columns.push(unquoteIdentifier(columnMatch[1]));
+            continue;
+        }
+
+        const indexMatch =
+            /^(?:(?:CONSTRAINT\s+`[^`]+`\s+)?)(PRIMARY\s+KEY|UNIQUE(?:\s+KEY)?|KEY|INDEX)\s*(?:`([^`]+)`)?\s*\(([^)]+)\)/i.exec(definition);
+
+        if (indexMatch) {
+            const kind = indexMatch[1].toUpperCase();
+            const name = kind.startsWith('PRIMARY')
+                ? 'PRIMARY'
+                : indexMatch[2];
+
+            indexes.push({
+                name,
+                columns: parseColumnList(indexMatch[3]),
+                unique: kind.startsWith('UNIQUE') || kind.startsWith('PRIMARY')
+            });
+        }
+    }
+
+    return { tableName, columns, indexes };
+}
+async function readIndexDefinition(connection, tableName, indexName) {
+    const [rows] = await connection.query(
+        `SELECT INDEX_NAME, SEQ_IN_INDEX, COLUMN_NAME, NON_UNIQUE
+           FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = ?
+            AND INDEX_NAME = ?
+          ORDER BY SEQ_IN_INDEX`,
+        [tableName, indexName]
     );
 
-    const actualDb = result[0]?.current_db;
-
-    if (actualDb !== expectedDb) {
-        throw new Error(
-            `[TEST-INIT] ISOLATION FAILURE: Expected "${expectedDb}", got "${actualDb}".`
-        );
-    }
-
-    console.log(`[TEST-INIT] Verified: Connected to "${actualDb}".`);
-    return actualDb;
-}
-async function safeWrite(conn, expectedDb, sql, params = []) {
-    // Verify the active connection immediately before the write.
-    await verifyDatabase(conn, expectedDb);
-
-    // Check again at the individual statement level.
-    assertNoPrimarySchemaReferences(sql);
-
-    return conn.query(sql, params);
-}
-async function ensureIndex(conn, targetDb, table, index, column) {
-    // These identifiers must come from the fixed list below,
-    // never from external user input.
-    const allowedIndexes = {
-        authors: {
-            idx_authors_is_archived: 'is_archived',
-        },
-        categories: {
-            idx_categories_is_archived: 'is_archived',
-        },
-        books: {
-            idx_books_pdf_stored_name: 'pdf_stored_name',
-        },
+    if (!rows.length) return null;
+    return {
+        columns: rows.map((row) => row.COLUMN_NAME),
+        unique: Number(rows[0].NON_UNIQUE) === 0,
     };
+}
 
-    if (allowedIndexes[table]?.[index] !== column) {
-        throw new Error(
-            `[TEST-INIT] BLOCKED: Unapproved index definition: ${table}.${index}`
-        );
+async function verifyIndexDefinition(connection, tableName, expectedIndex) {
+    const actual = await readIndexDefinition(connection, tableName, expectedIndex.name);
+    if (!actual) {
+        throw new Error(`Existing table ${tableName} is missing required index ${expectedIndex.name}.`);
     }
 
-    await verifyDatabase(conn, targetDb);
+    const columnsMatch = actual.columns.length === expectedIndex.columns.length &&
+        actual.columns.every((column, index) => column === expectedIndex.columns[index]);
+    if (!columnsMatch || actual.unique !== expectedIndex.unique) {
+        throw new Error(
+            `Schema mismatch for ${tableName}.${expectedIndex.name}: expected ` +
+            `${expectedIndex.unique ? 'UNIQUE ' : ''}(${expectedIndex.columns.join(', ')}), got ` +
+            `${actual.unique ? 'UNIQUE ' : ''}(${actual.columns.join(', ')}).`
+        );
+    }
+}
 
-    const [rows] = await conn.query(
-        `SELECT GROUP_CONCAT(
-                    COLUMN_NAME ORDER BY SEQ_IN_INDEX
-                ) AS indexed_columns
-         FROM information_schema.STATISTICS
-         WHERE TABLE_SCHEMA = DATABASE()
-           AND TABLE_NAME = ?
-           AND INDEX_NAME = ?
-         GROUP BY INDEX_NAME`,
-        [table, index]
+const MIGRATION_MANAGED_COLUMNS = new Set([
+    'authors.is_archived',
+    'categories.is_archived',
+    'books.cover_path',
+    'books.publication_date',
+    'books.pdf_original_name',
+    'books.pdf_stored_name',
+    'books.pdf_size',
+    'books.pdf_uploaded_at',
+    'books.pdf_path',
+    'books.processed_content_path',
+]);
+
+const MIGRATION_MANAGED_INDEXES = new Set([
+    'authors.idx_authors_is_archived',
+    'categories.idx_categories_is_archived',
+    'books.idx_books_pdf_stored_name',
+    'private_library_files.uq_private_library_files_stored_name',
+    'private_library_files.idx_private_library_files_owner_id',
+    'private_library_files.idx_private_library_files_created_at',
+]);
+
+async function verifyCreateTableDefinition(connection, targetDatabase, definition) {
+    await verifyDatabase(connection, targetDatabase);
+
+    const [rows] = await connection.query(
+        `SELECT COLUMN_NAME
+           FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = ?`,
+        [definition.tableName]
+    );
+    const actualColumns = new Set(rows.map((row) => row.COLUMN_NAME));
+    const missingColumns = definition.columns.filter((column) =>
+        !actualColumns.has(column) &&
+        !MIGRATION_MANAGED_COLUMNS.has(`${definition.tableName}.${column}`)
     );
 
-    if (rows.length > 0) {
-        if (rows[0].indexed_columns !== column) {
-            throw new Error(
-                `[TEST-INIT] Index ${index} exists with unexpected columns. ` +
-                'Manual review required; no changes made to that index.'
-            );
-        }
-
-        console.log(`[TEST-INIT] Index verified: ${index}`);
-        return;
+    if (missingColumns.length) {
+        throw new Error(
+            `Existing table ${definition.tableName} is missing required column(s): ${missingColumns.join(', ')}.`
+        );
     }
 
-    const sql =
-        'CREATE INDEX `' + index + '` ON `' + table + '` (`' + column + '`)';
-
-    await safeWrite(conn, targetDb, sql);
-
-    console.log(`[TEST-INIT] Index created: ${index}`);
+    // These indexes are explicitly created/validated by migrate.js after all
+    // schema and seed statements have been processed. Other declared indexes
+    // must already match the schema definition.
+    for (const index of definition.indexes) {
+        const managedKey = `${definition.tableName}.${index.name}`;
+        if (MIGRATION_MANAGED_INDEXES.has(managedKey)) continue;
+        await verifyIndexDefinition(connection, definition.tableName, index);
+    }
 }
 
+function makeCreateTableIdempotent(statement) {
+    return statement.replace(
+        /^CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)/i,
+        'CREATE TABLE IF NOT EXISTS '
+    );
+}
 
+function parseCreateIndexDefinition(statement) {
+    const match = /^CREATE\s+(UNIQUE\s+)?INDEX\s+(`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*)\s+ON\s+(`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*)\s*\(([^)]+)\)/i.exec(statement);
+    if (!match) {
+        throw new Error('Could not safely parse CREATE INDEX statement; refusing to execute it.');
+    }
 
-async function applySchema(conn, targetDb) {
-    console.log('\n[TEST-INIT] Applying schema (CREATE TABLE IF NOT EXISTS)...');
-    await verifyDatabase(conn, targetDb);
+    const indexName = unquoteIdentifier(match[2]);
+    const tableName = unquoteIdentifier(match[3]);
+    if (indexName.includes('.') || tableName.includes('.')) {
+        throw new Error('Qualified index or table names are not permitted in test schema SQL.');
+    }
 
+    return {
+        indexName,
+        tableName,
+        columns: parseColumnList(match[4]),
+        unique: Boolean(match[1]),
+    };
+}
+
+async function applySchema(connection, targetDatabase) {
+    console.log('\n[TEST-INIT] Applying schema definitions...');
     const schemaPath = path.resolve(__dirname, '..', '..', 'database', 'schema.sql');
-    const rawSql = fs.readFileSync(schemaPath, 'utf8');
-    const filteredSql = filterSql(rawSql);
+    const statements = readStatements(schemaPath);
+    let created = 0;
+    let alreadyPresent = 0;
 
-    // Split into individual statements
-    const statements = filteredSql
-        .split(';')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+    for (const statement of statements) {
+        const upper = statement.trim().toUpperCase();
 
-    let applied = 0;
-    for (const stmt of statements) {
-        // Only execute CREATE TABLE and CREATE INDEX statements
-        const upper = stmt.toUpperCase();
-        if (upper.startsWith('CREATE TABLE') || upper.startsWith('CREATE INDEX') ||
-            upper.startsWith('SET FOREIGN_KEY_CHECKS') || upper.startsWith('SET NAMES') ||
-            upper.startsWith('--')) {
-            try {
-                await safeWrite(conn, targetDb, stmt);
-                applied++;
-            } catch (err) {
-                if (err.code === 'ER_DUP_KEYNAME') {
-                    console.log('[TEST-INIT] Existing index skipped.');
-                    continue;
-                }
-                if (err.code === 'ER_TABLE_EXISTS_ERROR') {
-                    console.log('[TEST-INIT] Table already exists; skipping.');
-                    continue;
-                }
-                console.error(`[TEST-INIT] Schema error: ${err.message}`);
-                console.error(`[TEST-INIT] Statement: ${stmt.substring(0, 100)}...`);
-                throw err;
-            }
+        // These directives are deliberately ignored. This connection was
+        // already opened directly against digital_library_test.
+        if (upper.startsWith('CREATE DATABASE') || upper.startsWith('USE ') || upper.startsWith('SET ')) {
+            continue;
         }
+
+        assertNoPrimarySchemaReferences(statement);
+
+        if (/^CREATE\s+TABLE\b/i.test(statement)) {
+            const definition = parseCreateTableDefinition(statement);
+            await verifyDatabase(connection, targetDatabase);
+            const [result] = await connection.query(makeCreateTableIdempotent(statement));
+            if (result.warningStatus) alreadyPresent += 1;
+            else created += 1;
+            await verifyCreateTableDefinition(connection, targetDatabase, definition);
+            continue;
+        }
+
+        if (/^CREATE\s+(?:UNIQUE\s+)?INDEX\b/i.test(statement)) {
+            const definition = parseCreateIndexDefinition(statement);
+            const existing = await readIndexDefinition(connection, definition.tableName, definition.indexName);
+            if (existing) {
+                const matches = existing.columns.length === definition.columns.length &&
+                    existing.columns.every((column, index) => column === definition.columns[index]) &&
+                    existing.unique === definition.unique;
+                if (!matches) {
+                    throw new Error(`Existing index ${definition.tableName}.${definition.indexName} has a different definition.`);
+                }
+                alreadyPresent += 1;
+                continue;
+            }
+
+            await verifyDatabase(connection, targetDatabase);
+            await connection.query(statement);
+            const verified = await readIndexDefinition(connection, definition.tableName, definition.indexName);
+            if (!verified || verified.columns.length !== definition.columns.length ||
+                !verified.columns.every((column, index) => column === definition.columns[index]) ||
+                verified.unique !== definition.unique) {
+                throw new Error(`Created index ${definition.tableName}.${definition.indexName} did not match its declared definition.`);
+            }
+            created += 1;
+            continue;
+        }
+
+        throw new Error(`Unexpected statement in schema.sql; refusing to execute: ${statement.slice(0, 100)}`);
     }
 
-    await verifyDatabase(conn, targetDb);
-    console.log(`[TEST-INIT] Schema applied: ${applied} statements processed.`);
+    await verifyDatabase(connection, targetDatabase);
+    console.log(`[TEST-INIT] Schema complete: ${created} created, ${alreadyPresent} already present and verified.`);
 }
-
-async function applySeed(conn, targetDb) {
-    console.log('\n[TEST-INIT] Applying seed data (INSERT IGNORE)...');
-    await verifyDatabase(conn, targetDb);
-
+async function applySeed(connection, targetDatabase) {
+    console.log('\n[TEST-INIT] Applying seed records using the SQL file as authored...');
     const seedPath = path.resolve(__dirname, '..', '..', 'database', 'seed.sql');
-    const rawSql = fs.readFileSync(seedPath, 'utf8');
-    const filteredSql = filterSql(rawSql);
+    const statements = readStatements(seedPath);
+    let executed = 0;
 
-    const statements = filteredSql
-        .split(';')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+    for (const statement of statements) {
+        const upper = statement.trim().toUpperCase();
+        if (upper.startsWith('USE ') || upper.startsWith('SET ')) continue;
 
-    let applied = 0;
-    for (const stmt of statements) {
-        const upper = stmt.toUpperCase();
-        if (upper.startsWith('INSERT')) {
-            try {
-                await safeWrite(conn, targetDb, stmt);
-                applied++;
-            } catch (err) {
-                if (err.code === 'ER_DUP_ENTRY') {
-                    console.log('[TEST-INIT] Duplicate seed entry skipped.');
-                    continue;
-                }
-                console.error(`[TEST-INIT] Seed error: ${err.message}`);
-                console.error(`[TEST-INIT] Statement: ${stmt.substring(0, 100)}...`);
-                throw err;
-            }
+        if (!upper.startsWith('INSERT INTO ') && !upper.startsWith('INSERT IGNORE INTO ')) {
+            throw new Error(`Unexpected statement in seed.sql; refusing to execute: ${statement.slice(0, 100)}`);
         }
+
+        assertNoPrimarySchemaReferences(statement);
+        await verifyDatabase(connection, targetDatabase);
+        await connection.query(statement);
+        executed += 1;
     }
 
-    await verifyDatabase(conn, targetDb);
-    console.log(`[TEST-INIT] Seed applied: ${applied} statements processed.`);
+    await verifyDatabase(connection, targetDatabase);
+    console.log(`[TEST-INIT] Seed complete: ${executed} INSERT statements processed.`);
 }
 
-async function applyMigrations(conn, targetDb) {
-    console.log('\n[TEST-INIT] Applying migration compatibility checks (016-019)...');
-    await verifyDatabase(conn, targetDb);
-
-    // Migration 016: Add USER role
-    try {
-        await safeWrite(conn, targetDb, "INSERT IGNORE INTO roles (role_name, description) VALUES ('USER', 'Standard authenticated user')");
-        console.log('[TEST-INIT] Migration 016: USER role ensured.');
-    } catch (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-            console.log('[TEST-INIT] Role already exists; skipping.');
-        } else {
-            console.error('[TEST-INIT] Migration 016 error:', err.message);
-            throw err;
-        }
-    }
-
-    // Migration 017: Archiving columns
-    try {
-        const [cols] = await conn.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'authors' AND COLUMN_NAME = 'is_archived'");
-        if (cols.length === 0) {
-            await safeWrite(conn, targetDb, 'ALTER TABLE authors ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0');
-            console.log('[TEST-INIT] Migration 017: authors.is_archived added.');
-        } else {
-            console.log('[TEST-INIT] Migration 017: authors.is_archived already exists.');
-        }
-    } catch (err) {
-        if (err.code === 'ER_DUP_FIELDNAME') {
-            console.log('[TEST-INIT] Column already exists; skipping.');
-        } else {
-            console.error('[TEST-INIT] Migration 017 error:', err.message);
-            throw err;
-        }
-    }
-
-    try {
-        const [cols] = await conn.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'categories' AND COLUMN_NAME = 'is_archived'");
-        if (cols.length === 0) {
-            await safeWrite(conn, targetDb, 'ALTER TABLE categories ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0');
-            console.log('[TEST-INIT] Migration 017: categories.is_archived added.');
-        } else {
-            console.log('[TEST-INIT] Migration 017: categories.is_archived already exists.');
-        }
-    } catch (err) {
-        if (err.code === 'ER_DUP_FIELDNAME') {
-            console.log('[TEST-INIT] Column already exists; skipping.');
-        } else {
-            console.error('[TEST-INIT] Migration 017 error:', err.message);
-            throw err;
-        }
-    }
-
-    // Migration 018: Private library files table
-    try {
-        const [tables] = await conn.query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'private_library_files'");
-        if (tables.length === 0) {
-            await safeWrite(conn, targetDb, `CREATE TABLE IF NOT EXISTS private_library_files (
-                private_file_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                owner_id BIGINT UNSIGNED NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                description VARCHAR(1000) NULL,
-                original_file_name VARCHAR(255) NOT NULL,
-                stored_file_name VARCHAR(255) NOT NULL,
-                storage_path VARCHAR(500) NOT NULL,
-                mime_type VARCHAR(100) NOT NULL,
-                file_size BIGINT UNSIGNED NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                CONSTRAINT fk_private_library_files_owner FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-                CONSTRAINT uq_private_library_files_stored_name UNIQUE (stored_file_name),
-                INDEX idx_private_library_files_owner_id (owner_id),
-                INDEX idx_private_library_files_created_at (created_at)
-            ) ENGINE=InnoDB`);
-            console.log('[TEST-INIT] Migration 018: private_library_files table created.');
-        } else {
-            console.log('[TEST-INIT] Migration 018: private_library_files table already exists.');
-        }
-    } catch (err) {
-        if (err.code === 'ER_TABLE_EXISTS_ERROR') {
-            console.log('[TEST-INIT] Table already exists; skipping.');
-        } else {
-            console.error('[TEST-INIT] Migration 018 error:', err.message);
-            throw err;
-        }
-    }
-
-    // Migration 019: Book PDF columns
-    const pdfColumns = ['pdf_original_name', 'pdf_stored_name', 'pdf_size', 'pdf_uploaded_at', 'pdf_path', 'processed_content_path', 'cover_path', 'publication_date'];
-    for (const col of pdfColumns) {
-        try {
-            const [cols] = await conn.query(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'books' AND COLUMN_NAME = '${col}'`);
-            if (cols.length === 0) {
-                let sql = '';
-                switch (col) {
-                    case 'pdf_original_name': sql = "ALTER TABLE books ADD COLUMN pdf_original_name VARCHAR(255) NULL"; break;
-                    case 'pdf_stored_name': sql = "ALTER TABLE books ADD COLUMN pdf_stored_name VARCHAR(255) NULL"; break;
-                    case 'pdf_size': sql = "ALTER TABLE books ADD COLUMN pdf_size BIGINT UNSIGNED NULL"; break;
-                    case 'pdf_uploaded_at': sql = "ALTER TABLE books ADD COLUMN pdf_uploaded_at DATETIME NULL"; break;
-                    case 'pdf_path': sql = "ALTER TABLE books ADD COLUMN pdf_path VARCHAR(500) NULL"; break;
-                    case 'processed_content_path': sql = "ALTER TABLE books ADD COLUMN processed_content_path VARCHAR(255) NULL"; break;
-                    case 'cover_path': sql = "ALTER TABLE books ADD COLUMN cover_path VARCHAR(255) NULL"; break;
-                    case 'publication_date': sql = "ALTER TABLE books ADD COLUMN publication_date DATE NULL"; break;
-                }
-                if (sql) {
-                    await safeWrite(conn, targetDb, sql);
-                    console.log(`[TEST-INIT] Migration 019: books.${col} added.`);
-                }
-            }
-        } catch (err) {
-            if (err.code === 'ER_DUP_FIELDNAME') {
-                console.log('[TEST-INIT] Column already exists; skipping.');
-            } else {
-                console.error(`[TEST-INIT] Migration 019 error (${col}):`, err.message);
-                throw err;
-            }
-        }
-    }
-    const requiredIndexes = [
-        {
-            table: 'authors',
-            index: 'idx_authors_is_archived',
-            column: 'is_archived',
-        },
-        {
-            table: 'categories',
-            index: 'idx_categories_is_archived',
-            column: 'is_archived',
-        },
-        {
-            table: 'books',
-            index: 'idx_books_pdf_stored_name',
-            column: 'pdf_stored_name',
-        },
-    ];
-
-    for (const item of requiredIndexes) {
-        await ensureIndex(
-            conn,
-            targetDb,
-            item.table,
-            item.index,
-            item.column
-        );
-    }
-
-
-    await verifyDatabase(conn, targetDb);
-    console.log('[TEST-INIT] Migration compatibility checks (016-019) completed.');
-}
-
-// ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-    let conn = null;
-    let initializationError = null;
+    const targetDatabase = validateTarget(process.env.TEST_DB_NAME);
+    let connection;
 
     try {
-        console.log(
-            '=== Digital Library � Safe Test Database Initialization ===\n'
-        );
-
-        const targetDb = validateTarget(process.env.TEST_DB_NAME);
-
-        console.log(`[TEST-INIT] Target database: ${targetDb}`);
-        console.log(`[TEST-INIT] Forbidden database: ${FORBIDDEN_DB}`);
-
-        conn = await mysql.createConnection({
+        connection = await mysql.createConnection({
             host: process.env.DB_HOST || 'localhost',
             port: Number(process.env.DB_PORT) || 3306,
             user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: targetDb,
+            password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : '',
+            database: targetDatabase,
         });
 
-        await verifyDatabase(conn, targetDb);
+        await verifyDatabase(connection, targetDatabase);
+        console.log(`[TEST-INIT] Confirmed isolated target: ${targetDatabase}`);
 
-        const [tables] = await conn.query('SHOW TABLES');
-        console.log(`[TEST-INIT] Current tables: ${tables.length}`);
+        await applySchema(connection, targetDatabase);
+        await applySeed(connection, targetDatabase);
 
-        const wasEmptyAtStart = tables.length === 0;
+        const { applyMigrations } = require('./migrate');
+        await applyMigrations(connection, targetDatabase);
 
-        await applySchema(conn, targetDb);
+        await verifyDatabase(connection, targetDatabase);
+        const [tables] = await connection.query('SHOW TABLES');
+        const [roles] = await connection.query('SELECT role_name FROM roles ORDER BY role_id');
 
-        if (wasEmptyAtStart) {
-            console.log(
-                '[TEST-INIT] Database was empty; applying initial seed data.'
-            );
-            await applySeed(conn, targetDb);
-        } else {
-            console.log(
-                '[TEST-INIT] Seed skipped because the database already contained tables.'
-            );
-        }
-
-        await applyMigrations(conn, targetDb);
-
-        await verifyDatabase(conn, targetDb);
-
-        const [finalTables] = await conn.query('SHOW TABLES');
-        const [roles] = await conn.query(
-            'SELECT role_name FROM roles ORDER BY role_id'
-        );
-
-        console.log('\n[TEST-INIT] Final state:');
-        console.log(`  Database: ${targetDb}`);
-        console.log(`  Tables: ${finalTables.length}`);
-        console.log(`  Roles: ${roles.map((r) => r.role_name).join(', ')}`);
-    } catch (err) {
-        initializationError = err;
+        console.log('\n[TEST-INIT] Initialization completed successfully.');
+        console.log(`  Database: ${targetDatabase}`);
+        console.log(`  Tables: ${tables.length}`);
+        console.log(`  Roles: ${roles.map((row) => row.role_name).join(', ')}`);
+        console.log('[TEST-INIT] No database creation, drop, truncate, reset, or database-switch statement was executed.');
     } finally {
-        if (conn) {
-            try {
-                await conn.end();
-            } catch (closeErr) {
-                console.error(
-                    '[TEST-INIT] Failed to close database connection:',
-                    closeErr.message
-                );
-
-                if (!initializationError) {
-                    initializationError = closeErr;
-                }
-            }
+        if (connection) {
+            await connection.end();
+            console.log('[TEST-INIT] Database connection closed.');
         }
     }
-
-    if (initializationError) {
-        throw initializationError;
-    }
-
-    console.log('\n[TEST-INIT] Initialization complete.');
-    console.log(
-        '[TEST-INIT] The configured test database was used; primary database writes were not requested.'
-    );
 }
 
-main().catch((err) => {
-    console.error('[TEST-INIT] Fatal error:', err.message);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main().catch((error) => {
+        console.error('[TEST-INIT] Initialization failed:', error.message);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = {
+    validateTarget,
+    splitSqlStatements,
+    assertNoPrimarySchemaReferences,
+    verifyDatabase,
+    parseCreateTableDefinition,
+    applySchema,
+    applySeed,
+};

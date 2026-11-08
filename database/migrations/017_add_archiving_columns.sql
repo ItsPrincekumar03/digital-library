@@ -1,11 +1,9 @@
-USE digital_library;
-
-ALTER TABLE authors
-  ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0;
-
-ALTER TABLE categories
-  ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0;
-
-ALTER TABLE books
-  ADD COLUMN cover_path VARCHAR(255) NULL,
-  ADD COLUMN publication_date DATE NULL;
+-- =====================================================
+-- SUPERSEDED. Do not run this file.
+-- Migration 017 (authors.is_archived, categories.is_archived, books.cover_path,
+-- books.publication_date) is applied by backend/scripts/migrate.js, which checks
+-- each column before adding it and is safe to re-run.
+-- Running this file after migrate.js fails with "Duplicate column name".
+-- database/schema.sql already defines these columns for fresh installs.
+-- Kept as history only. This file contains no executable statements.
+-- =====================================================

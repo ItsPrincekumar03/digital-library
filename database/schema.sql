@@ -89,6 +89,7 @@ CREATE TABLE books (
     publication_date       DATE NULL,
     pdf_original_name      VARCHAR(255) NULL,
     pdf_stored_name        VARCHAR(255) NULL,
+    file_format            VARCHAR(10) NULL,
     pdf_size               BIGINT UNSIGNED NULL,
     pdf_uploaded_at        DATETIME NULL,
     pdf_path               VARCHAR(500) NULL,
@@ -393,6 +394,7 @@ CREATE TABLE IF NOT EXISTS private_library_files (
     stored_file_name   VARCHAR(255) NOT NULL,
     storage_path       VARCHAR(500) NOT NULL,
     mime_type          VARCHAR(100) NOT NULL,
+    file_format        VARCHAR(10) NULL,
     file_size          BIGINT UNSIGNED NOT NULL,
     created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

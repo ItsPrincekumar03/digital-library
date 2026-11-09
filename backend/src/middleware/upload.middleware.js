@@ -13,6 +13,10 @@ const PDF_MIME_TYPES = new Set([
     'application/x-pdf'
 ]);
 
+const EPUB_MIME_TYPES = new Set([
+    'application/epub+zip'
+]);
+
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function getPrivatePdfMaxSize() {
@@ -42,127 +46,168 @@ function getPublicPdfMaxSize() {
     return DEFAULT_MAX_FILE_SIZE;
 }
 
-function isPdfFile(file) {
+function isAllowedFile(file) {
     const extension = path.extname(file.originalname || '').toLowerCase();
 
-    return extension === '.pdf' && PDF_MIME_TYPES.has(file.mimetype);
+    if (extension === '.pdf' && PDF_MIME_TYPES.has(file.mimetype)) {
+        return true;
+    }
+
+    if (extension === '.epub' && EPUB_MIME_TYPES.has(file.mimetype)) {
+        return true;
+    }
+
+    return false;
 }
 
-const privatePdfStorage = multer.diskStorage({
-    async destination(req, file, callback) {
-        try {
-            await ensurePrivateUploadDirectory();
-            callback(null, getPrivateUploadDirectory());
-        } catch (error) {
-            callback(error);
-        }
-    },
-
-    filename(req, file, callback) {
-        const storedFileName = `${crypto.randomUUID()}.pdf`;
-        callback(null, storedFileName);
-    }
-});
-
-const privatePdfUpload = multer({
-    storage: privatePdfStorage,
-    limits: {
-        fileSize: getPrivatePdfMaxSize()
-    },
-    fileFilter(req, file, callback) {
-        if (!isPdfFile(file)) {
-            return callback(new Error('Only PDF files are allowed.'));
-        }
-
-        callback(null, true);
-    }
-});
-
-function handlePrivatePdfUpload(req, res, next) {
-    const uploadSinglePdf = privatePdfUpload.single('pdf');
-
-    uploadSinglePdf(req, res, (error) => {
-        if (!error) {
-            return next();
-        }
-
-        if (error instanceof multer.MulterError) {
-            if (error.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({
-                    success: false,
-                    message: `PDF file size must be ${getPrivatePdfMaxSize()} bytes or less.`
-                });
-            }
-
+function handleUploadError(error, res, maxSize) {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
-                message: error.message
+                message: 'File size must be ' + maxSize + ' bytes or less.'
             });
         }
-
         return res.status(400).json({
             success: false,
-            message: error.message || 'PDF upload failed.'
+            message: error.message
         });
+    }
+    return res.status(400).json({
+        success: false,
+        message: error.message || 'Upload failed.'
     });
 }
 
-const publicPdfStorage = multer.diskStorage({
-    async destination(req, file, callback) {
-        try {
-            await ensurePublicUploadDirectory();
-            callback(null, getPublicUploadDirectory());
-        } catch (error) {
-            callback(error);
+function handlePrivatePdfUpload(req, res, next) {
+    const maxSize = getPrivatePdfMaxSize();
+
+    const storage = multer.diskStorage({
+        async destination(req, file, callback) {
+            try {
+                await ensurePrivateUploadDirectory();
+                callback(null, getPrivateUploadDirectory());
+            } catch (error) {
+                callback(error);
+            }
+        },
+
+        filename(req, file, callback) {
+            const ext = path.extname(file.originalname || '').toLowerCase();
+            const safeExt = (ext === '.pdf' || ext === '.epub') ? ext : '.bin';
+            const storedFileName = crypto.randomUUID() + safeExt;
+            callback(null, storedFileName);
         }
-    },
+    });
 
-    filename(req, file, callback) {
-        const storedFileName = `${crypto.randomUUID()}.pdf`;
-        callback(null, storedFileName);
-    }
-});
+    const upload = multer({
+        storage: storage,
+        limits: { fileSize: maxSize },
+        fileFilter(req, file, callback) {
+            const extension = path.extname(file.originalname || '').toLowerCase();
+            const isPdf = extension === '.pdf' && PDF_MIME_TYPES.has(file.mimetype);
+            const isEpub = extension === '.epub' && EPUB_MIME_TYPES.has(file.mimetype);
 
-const publicPdfUpload = multer({
-    storage: publicPdfStorage,
-    limits: {
-        fileSize: getPublicPdfMaxSize()
-    },
-    fileFilter(req, file, callback) {
-        if (!isPdfFile(file)) {
-            return callback(new Error('Only PDF files are allowed.'));
-        }
-
-        callback(null, true);
-    }
-});
-
-function handlePublicPdfUpload(req, res, next) {
-    const uploadSinglePdf = publicPdfUpload.single('pdf');
-
-    uploadSinglePdf(req, res, (error) => {
-        if (!error) {
-            return next();
-        }
-
-        if (error instanceof multer.MulterError) {
-            if (error.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({
-                    success: false,
-                    message: `PDF file size must be ${getPublicPdfMaxSize()} bytes or less.`
-                });
+            if (!isPdf && !isEpub) {
+                return callback(new Error('Only PDF or EPUB files are allowed.'));
             }
 
+            callback(null, true);
+        }
+    });
+
+    // Use fields() to accept both 'file' and 'pdf' field names in a single pass
+    const uploadFields = upload.fields([
+        { name: 'file', maxCount: 1 },
+        { name: 'pdf', maxCount: 1 }
+    ]);
+
+    uploadFields(req, res, (error) => {
+        if (error) {
+            return handleUploadError(error, res, maxSize);
+        }
+
+        // Normalize: use whichever field was provided
+        if (req.files && req.files.file && req.files.file.length > 0) {
+            req.file = req.files.file[0];
+        } else if (req.files && req.files.pdf && req.files.pdf.length > 0) {
+            req.file = req.files.pdf[0];
+        }
+
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: error.message
+                message: 'File is required.'
             });
         }
 
-        return res.status(400).json({
-            success: false,
-            message: error.message || 'PDF upload failed.'
-        });
+        next();
+    });
+}
+
+function handlePublicPdfUpload(req, res, next) {
+    const maxSize = getPublicPdfMaxSize();
+
+    const storage = multer.diskStorage({
+        async destination(req, file, callback) {
+            try {
+                await ensurePublicUploadDirectory();
+                callback(null, getPublicUploadDirectory());
+            } catch (error) {
+                callback(error);
+            }
+        },
+
+        filename(req, file, callback) {
+            const ext = path.extname(file.originalname || '').toLowerCase();
+            const safeExt = (ext === '.pdf' || ext === '.epub') ? ext : '.bin';
+            const storedFileName = crypto.randomUUID() + safeExt;
+            callback(null, storedFileName);
+        }
+    });
+
+    const upload = multer({
+        storage: storage,
+        limits: { fileSize: maxSize },
+        fileFilter(req, file, callback) {
+            const extension = path.extname(file.originalname || '').toLowerCase();
+            const isPdf = extension === '.pdf' && PDF_MIME_TYPES.has(file.mimetype);
+            const isEpub = extension === '.epub' && EPUB_MIME_TYPES.has(file.mimetype);
+
+            if (!isPdf && !isEpub) {
+                return callback(new Error('Only PDF or EPUB files are allowed.'));
+            }
+
+            callback(null, true);
+        }
+    });
+
+    // Use fields() to accept both 'file' and 'pdf' field names in a single pass
+    const uploadFields = upload.fields([
+        { name: 'file', maxCount: 1 },
+        { name: 'pdf', maxCount: 1 }
+    ]);
+
+    uploadFields(req, res, (error) => {
+        if (error) {
+            return handleUploadError(error, res, maxSize);
+        }
+
+        // Normalize: use whichever field was provided
+        if (req.files && req.files.file && req.files.file.length > 0) {
+            req.file = req.files.file[0];
+        } else if (req.files && req.files.pdf && req.files.pdf.length > 0) {
+            req.file = req.files.pdf[0];
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'File is required.'
+            });
+        }
+
+        next();
     });
 }
 

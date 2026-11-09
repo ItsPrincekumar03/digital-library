@@ -17,7 +17,14 @@ const uploadRules = [
         .optional({ nullable: true })
         .trim()
         .isLength({ max: 1000 })
-        .withMessage('Description must be 1000 characters or less')
+        .withMessage('Description must be 1000 characters or less'),
+
+    body('format')
+        .optional({ nullable: true })
+        .trim()
+        .toUpperCase()
+        .isIn(['PDF', 'EPUB'])
+        .withMessage('Format must be "PDF" or "EPUB"')
 ];
 
 function handleValidation(req, res, next) {

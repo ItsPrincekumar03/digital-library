@@ -3,7 +3,7 @@ const privateLibraryService = require('../services/privateLibrary.service');
 
 async function upload(req, res, next) {
     try {
-        const privateFile = await privateLibraryService.uploadPrivatePdf(
+        const privateFile = await privateLibraryService.uploadPrivateFile(
             req.user,
             req.body,
             req.file
@@ -11,7 +11,7 @@ async function upload(req, res, next) {
 
         res.status(201).json({
             success: true,
-            message: 'PDF uploaded successfully.',
+            message: 'File uploaded successfully.',
             data: { privateFile }
         });
     } catch (err) {

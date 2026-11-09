@@ -5,9 +5,11 @@ const {
     fileExists,
     resolvePrivatePdfPath
 } = require('../utils/fileStorage');
+const { validateEpubFile } = require('../utils/epubValidation');
+const { validateFormat, validateExtension, validateMimeType } = require('../utils/formatValidation');
 
 function notFound() {
-    const err = new Error('Private PDF not found.');
+    const err = new Error('Private file not found.');
     err.status = 404;
     return err;
 }
@@ -30,7 +32,7 @@ function buildTitle(bodyTitle, originalFileName) {
     return path.basename(
         originalFileName,
         path.extname(originalFileName)
-    ).slice(0, 255) || 'Untitled PDF';
+    ).slice(0, 255) || 'Untitled File';
 }
 
 function toPublicMetadata(file) {
@@ -41,14 +43,45 @@ function toPublicMetadata(file) {
         original_file_name: file.original_file_name,
         mime_type: file.mime_type,
         file_size: file.file_size,
+        file_format: file.file_format || null,
         created_at: file.created_at,
         updated_at: file.updated_at
     };
 }
 
-async function uploadPrivatePdf(user, body, file) {
+async function uploadPrivateFile(user, body, file) {
     if (!file) {
-        throw badRequest('PDF file is required.');
+        throw badRequest('File is required.');
+    }
+
+    // Validate format
+    if (!body.format) {
+        body.format = 'PDF';
+    }
+    const formatResult = validateFormat(body.format);
+    if (!formatResult.valid) {
+        throw badRequest(formatResult.error);
+    }
+    const format = formatResult.format;
+
+    // Validate extension
+    const extResult = validateExtension(format, file.originalname);
+    if (!extResult.valid) {
+        throw badRequest(extResult.error);
+    }
+
+    // Validate MIME type
+    const mimeResult = validateMimeType(format, file.mimetype);
+    if (!mimeResult.valid) {
+        throw badRequest(mimeResult.error);
+    }
+
+    // Format-specific content validation
+    if (format === 'PDF') {
+        const { validatePdfFile } = require('../utils/pdfValidation');
+        await validatePdfFile(file.path);
+    } else if (format === 'EPUB') {
+        await validateEpubFile(file.path);
     }
 
     const title = buildTitle(body.title, file.originalname);
@@ -63,9 +96,10 @@ async function uploadPrivatePdf(user, body, file) {
         description: description || null,
         originalFileName: file.originalname,
         storedFileName: file.filename,
-        storagePath: `private/${file.filename}`,
+        storagePath: 'private/' + file.filename,
         mimeType: file.mimetype,
-        fileSize: file.size
+        fileSize: file.size,
+        fileFormat: format
     });
 
     const privateFile = await privateLibraryRepository.findByIdAndOwner(
@@ -74,6 +108,14 @@ async function uploadPrivatePdf(user, body, file) {
     );
 
     return toPublicMetadata(privateFile);
+}
+
+// Backward-compatible alias
+async function uploadPrivatePdf(user, body, file) {
+    if (!body.format) {
+        body.format = 'PDF';
+    }
+    return uploadPrivateFile(user, body, file);
 }
 
 async function listPrivatePdfs(user) {
@@ -107,7 +149,7 @@ async function getPrivatePdfForStreaming(user, privateFileId) {
     const filePath = resolvePrivatePdfPath(privateFile.stored_file_name);
 
     if (!(await fileExists(filePath))) {
-        const err = new Error('The PDF file is missing from storage.');
+        const err = new Error('The file is missing from storage.');
         err.status = 404;
         throw err;
     }
@@ -139,10 +181,54 @@ async function deletePrivatePdf(user, privateFileId) {
     );
 }
 
+async function getPrivateDocument(user, privateFileId) {
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(
+        privateFileId,
+        user.user_id
+    );
+
+    if (!privateFile) {
+        throw notFound();
+    }
+
+    const filePath = resolvePrivatePdfPath(privateFile.stored_file_name);
+
+    if (!(await fileExists(filePath))) {
+        const err = new Error('The file is missing from storage.');
+        err.status = 404;
+        throw err;
+    }
+
+    if (privateFile.file_format === 'EPUB') {
+        const { processEpubFile } = require('../utils/epubProcessor');
+        const document = await processEpubFile(filePath, {
+            bookId: privateFileId
+        });
+        return document;
+    }
+
+    const { extractPdfText } = require('../utils/pdfTextExtractor');
+    const extracted = await extractPdfText(filePath);
+    return {
+        version: 1,
+        bookId: privateFileId,
+        fileFormat: 'PDF',
+        sourceFile: privateFile.original_file_name,
+        pageCount: extracted.pageCount,
+        textChars: extracted.textChars,
+        extractedAt: new Date().toISOString(),
+        pages: extracted.pages,
+        images: [],
+        imageStatus: { status: 'not_attempted', extractedCount: 0, message: 'Image extraction not enabled for private files.' }
+    };
+}
+
 module.exports = {
     uploadPrivatePdf,
+    uploadPrivateFile,
     listPrivatePdfs,
     getPrivatePdf,
     getPrivatePdfForStreaming,
-    deletePrivatePdf
+    deletePrivatePdf,
+    getPrivateDocument
 };

@@ -65,7 +65,8 @@ function resolvePublicPdfPath(storedFileName) {
 // the same directory guard. The name is derived from the stored PDF name:
 // '<uuid>.pdf' -> '<uuid>.processed.json'.
 function buildPublicProcessedName(storedPdfName) {
-    const base = path.basename(String(storedPdfName || ''), '.pdf');
+    const ext = path.extname(String(storedPdfName || ''));
+    const base = path.basename(String(storedPdfName || ''), ext);
     return `${base}.processed.json`;
 }
 
@@ -87,7 +88,8 @@ function resolvePublicProcessedPath(processedFileName) {
 // directory guard, and every resolver below rejects anything that would
 // escape the approved storage directory (path traversal safe).
 function buildPublicImagesDirName(storedPdfName) {
-    const base = path.basename(String(storedPdfName || ''), '.pdf');
+    const ext = path.extname(String(storedPdfName || ''));
+    const base = path.basename(String(storedPdfName || ''), ext);
     return `${base}.images`;
 }
 

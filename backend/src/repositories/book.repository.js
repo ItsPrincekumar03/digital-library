@@ -57,14 +57,15 @@ async function setStatus(bookId, status) {
     );
 }
 
-async function updatePdfMetadata(bookId, { originalName, storedName, size }) {
+async function updatePdfMetadata(bookId, { originalName, storedName, size, fileFormat }) {
     const [result] = await pool.query(
         `UPDATE books
          SET pdf_original_name = ?, pdf_stored_name = ?, pdf_size = ?,
              pdf_uploaded_at = CURRENT_TIMESTAMP,
+             file_format = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE book_id = ?`,
-        [originalName, storedName, size, bookId]
+        [originalName, storedName, size, fileFormat || null, bookId]
     );
     return result;
 }

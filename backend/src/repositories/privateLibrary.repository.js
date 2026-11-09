@@ -8,12 +8,13 @@ async function create({
     storedFileName,
     storagePath,
     mimeType,
-    fileSize
+    fileSize,
+    fileFormat
 }) {
     const [result] = await pool.query(
         `INSERT INTO private_library_files
-            (owner_id, title, description, original_file_name, stored_file_name, storage_path, mime_type, file_size)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (owner_id, title, description, original_file_name, stored_file_name, storage_path, mime_type, file_size, file_format)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             ownerId,
             title,
@@ -22,7 +23,8 @@ async function create({
             storedFileName,
             storagePath,
             mimeType,
-            fileSize
+            fileSize,
+            fileFormat || null
         ]
     );
 

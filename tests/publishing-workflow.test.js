@@ -107,9 +107,10 @@ function closeServer(instance) {
     });
 }
 
-async function request(method, urlPath, { token = '', body = null, formData = null } = {}) {
+async function request(method, urlPath, { token = '', cookie = '', body = null, formData = null } = {}) {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    if (cookie) headers.Cookie = cookie;
 
     let requestBody = null;
     if (formData) {
@@ -132,7 +133,14 @@ async function request(method, urlPath, { token = '', body = null, formData = nu
         // Preserve the HTTP status so the assertion reports a useful failure.
     }
 
-    return { status: response.status, json };
+    const setCookie = response.headers.get('set-cookie');
+    let cookieToken = null;
+    if (setCookie && setCookie.includes('token=')) {
+        const match = setCookie.match(/token=([^;]+)/);
+        if (match) cookieToken = match[1];
+    }
+
+    return { status: response.status, json, token: cookieToken, setCookie };
 }
 
 async function verifyDatabaseTarget() {
@@ -288,7 +296,7 @@ async function runWorkflow() {
         },
     });
     assert('Configured test admin login succeeds (200)', adminLogin.status === 200, adminLogin.status);
-    const adminToken = requireValue('admin access token', adminLogin.json?.data?.token);
+    const adminToken = requireValue('admin access token', adminLogin.token || adminLogin.json?.data?.token);
     assert('Configured account has ADMIN role', adminLogin.json?.data?.user?.role_name === 'ADMIN', adminLogin.json?.data?.user?.role_name);
     adminUserId = Number(requireValue('admin user ID', adminLogin.json?.data?.user?.user_id));
 
@@ -309,7 +317,7 @@ async function runWorkflow() {
         body: { email: testUserEmail, password: userPassword },
     });
     assert('Test user login succeeds (200)', userLogin.status === 200, userLogin.status);
-    const userToken = requireValue('test user access token', userLogin.json?.data?.token);
+    const userToken = requireValue('test user access token', userLogin.token || userLogin.json?.data?.token);
 
     // Part A: chapter-based public book workflow.
     const bookATitle = `Module 17 Chapter Workflow ${stamp}`;
@@ -400,6 +408,20 @@ async function runWorkflow() {
 
     const archivedDocument = await request('GET', `/api/books/${bookAId}/document`, { token: userToken });
     assert('Normal user cannot read an archived document (404)', archivedDocument.status === 404, archivedDocument.status);
+
+    // Part D: Cookie authentication verification (D-3).
+    // Verifies that HttpOnly cookie authentication works without an Authorization Bearer header.
+    const cookieUserLogin = await request('POST', '/api/auth/login', {
+        body: { email: testUserEmail, password: userPassword },
+    });
+    assert('Cookie login returns 200', cookieUserLogin.status === 200, cookieUserLogin.status);
+    const sessionCookie = cookieUserLogin.setCookie ? cookieUserLogin.setCookie.split(';')[0] : '';
+    assert('Login response sets token cookie', Boolean(sessionCookie && sessionCookie.startsWith('token=')), Boolean(sessionCookie));
+
+    // Request using solely the Cookie header -- no Authorization header sent
+    const cookieProfile = await request('GET', '/api/users/profile', { cookie: sessionCookie });
+    assert('Cookie-only authentication succeeds on /api/users/profile (200)', cookieProfile.status === 200, cookieProfile.status);
+    assert('Profile response matches logged-in user', cookieProfile.json?.data?.user?.email === testUserEmail, cookieProfile.json?.data?.user?.email);
 }
 
 async function main() {

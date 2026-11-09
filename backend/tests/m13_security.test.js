@@ -22,7 +22,19 @@
 
 const assert = require('assert');
 
-const BASE = process.env.API_BASE || 'http://localhost:5000/api';
+// Safety guard: ensure the test targets the isolated test database and an explicitly configured test server
+if (process.env.TEST_DB_NAME !== 'digital_library_test') {
+    console.error('Test blocked: TEST_DB_NAME must equal digital_library_test.');
+    process.exit(1);
+}
+
+process.env.DB_NAME = process.env.TEST_DB_NAME;
+
+const BASE = process.env.API_BASE;
+if (!BASE || BASE.includes(':5000/api') || !BASE.startsWith('http')) {
+    console.error('Test blocked: API_BASE must be explicitly configured and must not target default production/dev port 5000.');
+    process.exit(1);
+}
 const USER_A_EMAIL = process.env.USER_A_EMAIL || 'usera@example.com';
 const USER_A_PASSWORD = process.env.USER_A_PASSWORD || 'passwordA';
 const USER_B_EMAIL = process.env.USER_B_EMAIL || 'userb@example.com';

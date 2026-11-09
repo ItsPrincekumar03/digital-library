@@ -88,7 +88,7 @@ async function run() {
         // 1. Log in admin
         const adminLogin = await request('POST', '/api/auth/login', {
             body: {
-                email: 'demoadmin@example.com',
+                email: 'demoadmin@exmaple.com',
                 password: 'Demoadmin@123',
             },
         });

@@ -140,10 +140,9 @@ export const auth = {
             credentials
         );
 
-        const token = payload?.data?.token || payload?.token;
-        if (token) {
-            api.setToken(token);
-        }
+        // The session is carried by the HttpOnly cookie set by the server.
+        // Clear any token left in sessionStorage by an earlier version of the app.
+        api.clearToken();
 
         const userFromLogin = normalizeUser(extractUser(payload));
         if (userFromLogin) {

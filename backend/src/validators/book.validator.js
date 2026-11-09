@@ -24,6 +24,8 @@ const bookIdParamRule = [param('bookId').isInt({ min: 1 }).withMessage('Invalid 
 // Module 13.4 — extracted images are server-named 'p<page>-<seq>.png'.
 // Anything else (including path separators) is rejected at the route layer;
 // the service additionally validates the name against the book's metadata.
+const chapterIndexParamRule = [param('chapterIndex').isInt({ min: 1 }).withMessage('Chapter index must be a positive integer')];
+
 const imageNameParamRule = [
     param('imageName')
         .matches(/^p\d+-\d+\.png$/)
@@ -42,4 +44,4 @@ function handleValidation(req, res, next) {
     next();
 }
 
-module.exports = { createBookRules, updateBookRules, idParamRule, bookIdParamRule, imageNameParamRule, handleValidation };
+module.exports = { createBookRules, updateBookRules, idParamRule, bookIdParamRule, imageNameParamRule, chapterIndexParamRule, handleValidation };

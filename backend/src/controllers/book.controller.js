@@ -189,6 +189,34 @@ async function getImage(req, res, next) {
     }
 }
 
+async function getToc(req, res, next) {
+    try {
+        const toc = await bookService.getBookToc(req.params.id, req.user);
+        res.status(200).json({
+            success: true,
+            data: { toc }
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function getChapterPage(req, res, next) {
+    try {
+        const chapter = await bookService.getBookChapterPage(
+            req.params.id,
+            req.params.chapterIndex,
+            req.user
+        );
+        res.status(200).json({
+            success: true,
+            data: { chapter }
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     create,
     getAll,
@@ -198,5 +226,7 @@ module.exports = {
     archive,
     importPdf,
     getDocument,
-    getImage
+    getImage,
+    getToc,
+    getChapterPage
 };

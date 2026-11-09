@@ -118,18 +118,20 @@ async function importPdf(req, res, next) {
         const result = await bookService.importBookPdf(
             req.params.id,
             req.user,
-            req.file
+            req.file,
+            req.body.format
         );
         const book = result && result.book ? result.book : result;
 
         res.status(200).json({
             success: true,
-            message: 'PDF imported successfully.',
+            message: 'File imported successfully.',
             data: {
                 book: {
                     book_id: book.book_id,
                     title: book.title,
                     status: book.status,
+                    file_format: book.file_format,
                     pdf_original_name: book.pdf_original_name,
                     pdf_size: book.pdf_size,
                     pdf_uploaded_at: book.pdf_uploaded_at,

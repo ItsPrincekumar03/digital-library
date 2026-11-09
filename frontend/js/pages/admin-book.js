@@ -294,47 +294,233 @@ function renderBook() {
    AUTHORS
 ------------------------------------------------------- */
 
+const FORMAT_CONFIG = {
+    PDF: {
+        label: "PDF",
+        extension: ".pdf",
+        accept: "application/pdf,.pdf",
+        mimeTypes: ["application/pdf", "application/x-pdf"],
+        maxSizeBytes: 10 * 1024 * 1024,
+        infoText: "PDF: Standard Portable Document Format (.pdf). Max file size: 10 MB.",
+        inputLabel: "PDF file",
+        submitText: "Import PDF",
+    },
+    EPUB: {
+        label: "EPUB",
+        extension: ".epub",
+        accept: "application/epub+zip,.epub",
+        mimeTypes: ["application/epub+zip"],
+        maxSizeBytes: 10 * 1024 * 1024,
+        infoText: "EPUB: Electronic publication format (.epub). Max file size: 10 MB.",
+        inputLabel: "EPUB file",
+        submitText: "Import EPUB",
+    }
+};
+
+let currentAdminFormat = "PDF";
+
+function validateUploadFile(file, format) {
+    if (!file) {
+        return { valid: false, message: "Please select a file to import." };
+    }
+
+    const config = FORMAT_CONFIG[format];
+    if (!config) {
+        return { valid: false, message: "Invalid format selected." };
+    }
+
+    if (file.size === 0) {
+        return { valid: false, message: "The selected file is empty." };
+    }
+
+    if (file.size > config.maxSizeBytes) {
+        const maxMb = Math.round(config.maxSizeBytes / (1024 * 1024));
+        return {
+            valid: false,
+            message: `The selected file exceeds the maximum permitted size of ${maxMb} MB.`
+        };
+    }
+
+    const fileName = (file.name || "").toLowerCase();
+    if (!fileName.endsWith(config.extension)) {
+        return {
+            valid: false,
+            message: `The selected file does not match the chosen format. Please select a valid ${config.label} file (${config.extension}).`
+        };
+    }
+
+    if (file.type && config.mimeTypes.length > 0) {
+        const mime = file.type.toLowerCase();
+        if (!config.mimeTypes.includes(mime) && mime !== "application/octet-stream" && mime !== "") {
+            return {
+                valid: false,
+                message: `The file MIME type ("${file.type}") does not match the chosen format ${config.label}.`
+            };
+        }
+    }
+
+    return { valid: true };
+}
+
+function setAdminFormat(newFormat) {
+    if (!FORMAT_CONFIG[newFormat]) {
+        return;
+    }
+    currentAdminFormat = newFormat;
+    const config = FORMAT_CONFIG[newFormat];
+
+    const pdfBtn = element("admin-format-pdf");
+    const epubBtn = element("admin-format-epub");
+    const infoNode = element("admin-format-info");
+    const labelNode = element("admin-file-label");
+    const fileInput = element("book-pdf-file");
+    const submitBtn = element("book-pdf-submit");
+    const messageNode = element("book-pdf-message");
+
+    if (pdfBtn && epubBtn) {
+        const isPdf = newFormat === "PDF";
+        pdfBtn.classList.toggle("is-active", isPdf);
+        pdfBtn.setAttribute("aria-checked", isPdf ? "true" : "false");
+        epubBtn.classList.toggle("is-active", !isPdf);
+        epubBtn.setAttribute("aria-checked", !isPdf ? "true" : "false");
+    }
+
+    if (infoNode) {
+        infoNode.innerHTML = `<strong>${config.label}:</strong> ${config.infoText.replace(config.label + ": ", "")}`;
+    }
+
+    if (labelNode) {
+        labelNode.innerHTML = `${config.inputLabel} <span aria-hidden="true">*</span>`;
+    }
+
+    if (submitBtn) {
+        submitBtn.textContent = config.submitText;
+    }
+
+    if (fileInput) {
+        fileInput.accept = config.accept;
+
+        if (fileInput.files && fileInput.files[0]) {
+            const fileName = (fileInput.files[0].name || "").toLowerCase();
+            if (!fileName.endsWith(config.extension)) {
+                fileInput.value = "";
+                if (messageNode) {
+                    showPdfMessage(`Previous file cleared because it was not a valid ${config.label} file.`, "info");
+                }
+            }
+        }
+    }
+}
+
 function renderBookPdf() {
     const nameElement = element("book-pdf-original-name");
     const uploadedElement = element("book-pdf-uploaded-at");
     if (!nameElement || !uploadedElement) { return; }
     const originalName = book?.pdf_original_name ?? book?.pdfOriginalName ?? null;
     const uploadedAt = book?.pdf_uploaded_at ?? book?.pdfUploadedAt ?? null;
-    nameElement.textContent = (typeof originalName === "string" && originalName.trim()) ? originalName : "—";
+    const format = book?.file_format ?? (originalName?.toLowerCase().endsWith(".epub") ? "EPUB" : (originalName ? "PDF" : null));
+
+    if (typeof originalName === "string" && originalName.trim()) {
+        nameElement.textContent = format ? `${originalName} (${format})` : originalName;
+    } else {
+        nameElement.textContent = "—";
+    }
     uploadedElement.textContent = formatDate(uploadedAt);
 }
-function showPdfMessage(message, type) {
+
+function showPdfMessage(message, type = "info") {
     const node = element("book-pdf-message");
     if (!node) { return; }
     node.textContent = message;
-    node.hidden = false;
-    node.dataset.type = type || "info";
+    node.hidden = !message;
+    node.classList.toggle("error-message", type === "error");
+    node.classList.toggle("success-message", type === "success");
+    node.dataset.type = type;
 }
+
 async function importBookPdf(event) {
     event.preventDefault();
     const input = element("book-pdf-file");
     const button = element("book-pdf-submit");
     const file = input && input.files ? input.files[0] : null;
-    if (!file) { showPdfMessage("Please choose a PDF file.", "error"); return; }
+
+    const validation = validateUploadFile(file, currentAdminFormat);
+    if (!validation.valid) {
+        showPdfMessage(validation.message, "error");
+        return;
+    }
+
     const formData = new FormData();
-    formData.append("pdf", file);
+    formData.append("file", file);
+    formData.append("format", currentAdminFormat);
+
     button.disabled = true;
+    showPdfMessage(`Importing ${currentAdminFormat}...`, "info");
+
     try {
         const response = await api.post("/books/" + encodeURIComponent(String(bookId)) + "/pdf", formData);
         const updated = unwrapResource(response, "book");
-        if (updated && typeof updated === "object") { book = Object.assign({}, book, updated); renderBookPdf(); }
-        else { await loadBook(); }
+        if (updated && typeof updated === "object") {
+            book = Object.assign({}, book, updated);
+            renderBookPdf();
+        } else {
+            await loadBook();
+        }
         input.value = "";
-        showPdfMessage("PDF imported successfully.", "success");
+        showPdfMessage(`${currentAdminFormat} imported successfully.`, "success");
     } catch (error) {
         showPdfMessage(friendlyError(error), "error");
     } finally {
         button.disabled = false;
     }
 }
+
 function bindPdfImport() {
+    setAdminFormat("PDF");
     const form = element("book-pdf-form");
-    if (form) { form.addEventListener("submit", importBookPdf); }
+    const input = element("book-pdf-file");
+    const pdfBtn = element("admin-format-pdf");
+    const epubBtn = element("admin-format-epub");
+
+    if (pdfBtn) {
+        pdfBtn.addEventListener("click", () => setAdminFormat("PDF"));
+        pdfBtn.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                e.preventDefault();
+                epubBtn?.focus();
+                setAdminFormat("EPUB");
+            }
+        });
+    }
+
+    if (epubBtn) {
+        epubBtn.addEventListener("click", () => setAdminFormat("EPUB"));
+        epubBtn.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                e.preventDefault();
+                pdfBtn?.focus();
+                setAdminFormat("PDF");
+            }
+        });
+    }
+
+    if (input) {
+        input.addEventListener("change", () => {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const validation = validateUploadFile(file, currentAdminFormat);
+            if (!validation.valid) {
+                showPdfMessage(validation.message, "error");
+                input.value = "";
+            } else {
+                showPdfMessage("");
+            }
+        });
+    }
+
+    if (form) {
+        form.addEventListener("submit", importBookPdf);
+    }
 }
 
 async function loadBookAuthors() {

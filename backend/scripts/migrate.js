@@ -192,6 +192,7 @@ async function verifyPrivateLibraryTable(connection, expectedDatabase) {
         ['stored_file_name', { columnType: 'varchar(255)', nullable: 'NO' }],
         ['storage_path', { columnType: 'varchar(500)', nullable: 'NO' }],
         ['mime_type', { columnType: 'varchar(100)', nullable: 'NO' }],
+        ['file_format', { columnType: 'varchar(10)', nullable: 'YES' }],
         ['file_size', { columnType: 'bigint unsigned', nullable: 'NO' }],
         ['created_at', { columnType: 'datetime', nullable: 'NO' }],
         ['updated_at', { columnType: 'datetime', nullable: 'NO' }],
@@ -265,6 +266,7 @@ async function applyMigrations(connection, expectedDatabase) {
         ['publication_date', { columnType: 'date', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN publication_date DATE NULL'],
         ['pdf_original_name', { columnType: 'varchar(255)', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN pdf_original_name VARCHAR(255) NULL'],
         ['pdf_stored_name', { columnType: 'varchar(255)', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN pdf_stored_name VARCHAR(255) NULL'],
+        ['file_format', { columnType: 'varchar(10)', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN file_format VARCHAR(10) NULL'],
         ['pdf_size', { columnType: 'bigint unsigned', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN pdf_size BIGINT UNSIGNED NULL'],
         ['pdf_uploaded_at', { columnType: 'datetime', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN pdf_uploaded_at DATETIME NULL'],
         ['pdf_path', { columnType: 'varchar(500)', nullable: 'YES' }, 'ALTER TABLE books ADD COLUMN pdf_path VARCHAR(500) NULL'],
@@ -294,6 +296,7 @@ async function applyMigrations(connection, expectedDatabase) {
                 stored_file_name VARCHAR(255) NOT NULL,
                 storage_path VARCHAR(500) NOT NULL,
                 mime_type VARCHAR(100) NOT NULL,
+                file_format VARCHAR(10) NULL,
                 file_size BIGINT UNSIGNED NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -307,6 +310,12 @@ async function applyMigrations(connection, expectedDatabase) {
         `);
         console.log('[MIGRATE] Created private_library_files.');
     }
+
+    await ensureColumn(
+        connection, expectedDatabase, 'private_library_files', 'file_format',
+        { columnType: 'varchar(10)', nullable: 'YES' },
+        'ALTER TABLE private_library_files ADD COLUMN file_format VARCHAR(10) NULL'
+    );
 
     await verifyPrivateLibraryTable(connection, expectedDatabase);
 

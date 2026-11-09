@@ -2,7 +2,7 @@ import { api, ApiError } from "../api.js";
 import { API_BASE_URL } from "../config.js";
 import { auth } from "../auth.js";
 import { initSettings, extractChapters } from "./read-settings.js?v=14.4.1";
-import { initChapters } from "./read-chapters.js?v=13.8.9";
+import { initChapters } from "./read-chapters.js?v=14.4.1";
 import { initTts } from "./read-tts.js?v=14.4.1";
 
 // Module 13.5 — continuous HTML reader (QuickNovel-inspired basics only).

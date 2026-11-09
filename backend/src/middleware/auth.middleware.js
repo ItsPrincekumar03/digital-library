@@ -20,7 +20,7 @@ async function requireAuth(req, res, next) {
             return res.status(401).json({ success: false, message: 'Authentication required.' });
         }
 
-        if (tokenBlacklist.isBlacklisted(token)) {
+        if (await tokenBlacklist.isRevoked(token)) {
             return res.status(401).json({ success: false, message: 'Session has been logged out.' });
         }
 

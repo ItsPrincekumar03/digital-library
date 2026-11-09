@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const authService = require('../services/auth.service');
 const tokenBlacklist = require('../utils/tokenBlacklist');
 
@@ -25,6 +26,8 @@ async function register(req, res, next) {
     }
 }
 
+// The token is delivered only as an HttpOnly cookie. It is not included in the
+// JSON body, so JavaScript cannot read it.
 async function login(req, res, next) {
     try {
         const { email, password } = req.body;
@@ -35,20 +38,39 @@ async function login(req, res, next) {
         res.status(200).json({
             success: true,
             message: 'Login successful.',
-            data: { user, token },
+            data: { user },
         });
     } catch (err) {
         next(err);
     }
 }
 
-async function logout(req, res) {
-    const token = req.token || (req.cookies ? req.cookies[COOKIE_NAME] : null);
-    if (token) {
-        tokenBlacklist.add(token);
+// Logout revokes the token in the database (see tokenBlacklist.js), so the
+// token is rejected even after a server restart. It is only reachable through
+// requireAuth, so req.user and req.token are always present here.
+async function logout(req, res, next) {
+    try {
+        const token = req.token || (req.cookies ? req.cookies[COOKIE_NAME] : null);
+
+        if (token) {
+            const decoded = jwt.decode(token);
+
+            if (decoded && decoded.exp) {
+                await tokenBlacklist.revoke(
+                    token,
+                    req.user ? req.user.user_id : null,
+                    new Date(decoded.exp * 1000)
+                );
+            }
+
+            await tokenBlacklist.purgeExpired();
+        }
+
+        res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS);
+        res.status(200).json({ success: true, message: 'Logged out successfully.' });
+    } catch (err) {
+        next(err);
     }
-    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS);
-    res.status(200).json({ success: true, message: 'Logged out successfully.' });
 }
 
 async function me(req, res) {

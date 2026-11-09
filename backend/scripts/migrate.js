@@ -326,6 +326,27 @@ async function applyMigrations(connection, expectedDatabase) {
         throw new Error('[MIGRATE] USER role could not be verified after insertion.');
     }
 
+    // 6. Revoked tokens table (Module 18: persistent logout)
+    if (!(await tableExists(connection, expectedDatabase, 'revoked_tokens'))) {
+        await assertDatabase(connection, expectedDatabase);
+        console.log('[MIGRATE] Creating revoked_tokens table...');
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS revoked_tokens (
+                token_hash CHAR(64) NOT NULL PRIMARY KEY,
+                user_id BIGINT UNSIGNED NULL,
+                revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME NOT NULL,
+                INDEX idx_revoked_tokens_expires_at (expires_at),
+                CONSTRAINT fk_revoked_tokens_user
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                    ON DELETE SET NULL ON UPDATE CASCADE
+            ) ENGINE=InnoDB;
+        `);
+        console.log('[MIGRATE] Created revoked_tokens table.');
+    } else {
+        console.log('[MIGRATE] revoked_tokens table already exists.');
+    }
+
     console.log(`[MIGRATE] Incremental migrations completed for "${expectedDatabase}".`);
 }
 

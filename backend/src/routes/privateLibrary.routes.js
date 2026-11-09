@@ -30,6 +30,14 @@ router.get(
 );
 
 router.get(
+    '/:id/document',
+    requireAuth,
+    idParamRule,
+    handleValidation,
+    privateLibraryController.getDocument
+);
+
+router.get(
     '/:id/file',
     requireAuth,
     idParamRule,

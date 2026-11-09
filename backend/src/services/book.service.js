@@ -9,6 +9,7 @@ const {
     buildPublicImagesDirName,
     resolvePublicImagesDir,
     resolvePublicImagePath,
+    getPublicUploadDirectory,
 } = require('../utils/fileStorage');
 const { validatePdfFile } = require('../utils/pdfValidation');
 const { extractPdfText } = require('../utils/pdfTextExtractor');
@@ -16,6 +17,7 @@ const { extractPdfImages } = require('../utils/pdfImageExtractor');
 const logger = require('../utils/logger');
 const fs = require('fs/promises');
 const path = require('path');
+const { processEpubFile } = require('../utils/epubProcessor');
 const {
     parsePagination,
     parseSort,
@@ -203,7 +205,7 @@ async function archiveBook(bookId, requestingUser) {
 // New public PDFs are stored as crypto.randomUUID() + '.pdf' by the upload
 // middleware. Only that exact server-generated format may be auto-deleted.
 const PUBLIC_PDF_STORED_NAME_PATTERN =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i;
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|epub)$/i;
 
 function isManagedPublicPdfName(storedName) {
     return (
@@ -332,17 +334,10 @@ async function importBookPdf(bookId, requestingUser, file, format) {
     let documentImages = [];
     let documentImageStatus = { status: 'not_attempted', extractedCount: 0, pageReferences: 0, skippedCount: 0, unsupportedCount: 0, pageErrors: 0, limitReached: false, totalBytes: 0, message: 'Image extraction was not attempted.' };
 
-    if (normalizedFormat === 'PDF') {
-        // Module 13.2 — extract text into '<uuid>.processed.json' next to the PDF
-        // and point processed_content_path at it. Extraction failure never fails
-        // the import and never invents text: the book keeps its PDF while the
-        // processed content simply stays unavailable (NULL).
-        const processedName = buildPublicProcessedName(file.filename);
+    const processedName = buildPublicProcessedName(file.filename);
+    const imagesDirName = buildPublicImagesDirName(file.filename);
 
-        // Module 13.3 — extract embedded images into '<uuid>.images/' and record
-        // them in the same processed document. Image failure never fails the
-        // import and never discards successful text extraction.
-        const imagesDirName = buildPublicImagesDirName(file.filename);
+    if (normalizedFormat === 'PDF') {
 
         try {
             const extracted = await extractPdfText(file.path);
@@ -436,13 +431,43 @@ async function importBookPdf(bookId, requestingUser, file, format) {
                 err
             );
         }
-    }
-    if (normalizedFormat === 'EPUB') {
-        return {
-            book: await bookRepository.findById(bookId),
-            imageStatus: 'not_attempted',
-            imageCount: 0,
-        };
+    } else if (normalizedFormat === 'EPUB') {
+        try {
+            const document = await processEpubFile(file.path, {
+                bookId: Number(bookId),
+                imagesDirName,
+                publicUploadDir: getPublicUploadDirectory()
+            });
+            documentImages = Array.isArray(document.images) ? document.images : [];
+            documentImageStatus = document.imageStatus || {
+                status: 'completed',
+                extractedCount: documentImages.length,
+                pageReferences: documentImages.length,
+                totalBytes: 0,
+                message: 'EPUB processed successfully.'
+            };
+            await fs.writeFile(
+                resolvePublicProcessedPath(processedName),
+                JSON.stringify(document),
+                'utf-8'
+            );
+            const processedResult = await bookRepository.updateProcessedPath(
+                bookId,
+                processedName
+            );
+            processedAvailable = !!processedResult && processedResult.affectedRows === 1;
+            if (!processedAvailable) {
+                await deleteFileIfExists(resolvePublicProcessedPath(processedName));
+                try {
+                    await deleteDirectoryIfExists(resolvePublicImagesDir(imagesDirName));
+                } catch (cleanupErr) {
+                    logger.error(`Failed to clean up unlinked images for book ${bookId}.`, cleanupErr);
+                }
+                logger.error(`Processed content for EPUB book ${bookId} was extracted but could not be linked; kept the EPUB only.`);
+            }
+        } catch (err) {
+            logger.error(`EPUB extraction failed for book ${bookId}; kept the file without processed content.`, err);
+        }
     }
 
 
@@ -747,6 +772,25 @@ async function getProcessedImage(bookId, imageName, requestingUser) {
     }
 }
 
+async function getBookToc(bookId, requestingUser) {
+    const document = await getProcessedDocument(bookId, requestingUser);
+    return document.toc || [];
+}
+
+async function getBookChapterPage(bookId, chapterIndex, requestingUser) {
+    const document = await getProcessedDocument(bookId, requestingUser);
+    const pages = Array.isArray(document.pages) ? document.pages : [];
+    const index = parseInt(chapterIndex, 10);
+    const page = pages.find((p) => Number(p.pageNumber) === index);
+    if (!page) {
+        const err = new Error('Chapter not found in readable document.');
+        err.status = 404;
+        err.code = 'CHAPTER_NOT_FOUND';
+        throw err;
+    }
+    return page;
+}
+
 module.exports = {
     createBook,
     getAllBooks,
@@ -757,5 +801,7 @@ module.exports = {
     archiveBook,
     importBookPdf,
     getProcessedDocument,
-    getProcessedImage
+    getProcessedImage,
+    getBookToc,
+    getBookChapterPage
 };

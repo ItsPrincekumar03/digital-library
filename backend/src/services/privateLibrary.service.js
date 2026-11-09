@@ -181,11 +181,54 @@ async function deletePrivatePdf(user, privateFileId) {
     );
 }
 
+async function getPrivateDocument(user, privateFileId) {
+    const privateFile = await privateLibraryRepository.findByIdAndOwner(
+        privateFileId,
+        user.user_id
+    );
+
+    if (!privateFile) {
+        throw notFound();
+    }
+
+    const filePath = resolvePrivatePdfPath(privateFile.stored_file_name);
+
+    if (!(await fileExists(filePath))) {
+        const err = new Error('The file is missing from storage.');
+        err.status = 404;
+        throw err;
+    }
+
+    if (privateFile.file_format === 'EPUB') {
+        const { processEpubFile } = require('../utils/epubProcessor');
+        const document = await processEpubFile(filePath, {
+            bookId: privateFileId
+        });
+        return document;
+    }
+
+    const { extractPdfText } = require('../utils/pdfTextExtractor');
+    const extracted = await extractPdfText(filePath);
+    return {
+        version: 1,
+        bookId: privateFileId,
+        fileFormat: 'PDF',
+        sourceFile: privateFile.original_file_name,
+        pageCount: extracted.pageCount,
+        textChars: extracted.textChars,
+        extractedAt: new Date().toISOString(),
+        pages: extracted.pages,
+        images: [],
+        imageStatus: { status: 'not_attempted', extractedCount: 0, message: 'Image extraction not enabled for private files.' }
+    };
+}
+
 module.exports = {
     uploadPrivatePdf,
     uploadPrivateFile,
     listPrivatePdfs,
     getPrivatePdf,
     getPrivatePdfForStreaming,
-    deletePrivatePdf
+    deletePrivatePdf,
+    getPrivateDocument
 };

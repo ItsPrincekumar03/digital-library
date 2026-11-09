@@ -85,10 +85,26 @@ async function remove(req, res, next) {
     }
 }
 
+async function getDocument(req, res, next) {
+    try {
+        const document = await privateLibraryService.getPrivateDocument(
+            req.user,
+            req.params.id
+        );
+        res.status(200).json({
+            success: true,
+            data: { document }
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     upload,
     list,
     getById,
     openFile,
-    remove
+    remove,
+    getDocument
 };

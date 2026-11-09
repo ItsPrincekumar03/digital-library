@@ -85,11 +85,11 @@
                     <p class="eyebrow">Original file</p>
 
                     <h2 id="book-pdf-heading">
-                        Administrative PDF import
+                        Administrative file import
                     </h2>
 
                     <p class="muted">
-                        Attach the original PDF to this book. Uploading does not publish the book.
+                        Attach the original PDF or EPUB file to this book. Uploading does not publish the book.
                     </p>
                 </div>
             </div>
@@ -117,13 +117,28 @@
             </div>
 
             <form id="book-pdf-form" enctype="multipart/form-data">
+                <div class="form-field format-selector-wrap">
+                    <label class="format-selector-label" id="admin-format-label">Choose book format</label>
+                    <div class="format-selector" role="radiogroup" aria-labelledby="admin-format-label">
+                        <button type="button" class="format-option-btn is-active" role="radio" aria-checked="true" data-format="PDF" id="admin-format-pdf">
+                            PDF
+                        </button>
+                        <button type="button" class="format-option-btn" role="radio" aria-checked="false" data-format="EPUB" id="admin-format-epub">
+                            EPUB
+                        </button>
+                    </div>
+                    <p class="format-info-badge" id="admin-format-info">
+                        <strong>PDF:</strong> Standard Portable Document Format (.pdf). Max file size: 10 MB.
+                    </p>
+                </div>
+
                 <div class="admin-form-field admin-form-field-full">
-                    <label for="book-pdf-file">
+                    <label for="book-pdf-file" id="admin-file-label">
                         PDF file
                         <span aria-hidden="true">*</span>
                     </label>
 
-                    <input id="book-pdf-file" type="file" accept="application/pdf,.pdf" required>
+                    <input id="book-pdf-file" name="file" type="file" accept="application/pdf,.pdf" required>
                 </div>
 
                 <p id="book-pdf-message" class="form-message" role="status" aria-live="polite" hidden></p>

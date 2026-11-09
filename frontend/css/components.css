@@ -323,3 +323,77 @@
     outline: 3px solid rgba(49, 86, 163, 0.35);
     outline-offset: 1px;
 }
+
+
+/* =========================================================
+   FORMAT SELECTOR COMPONENT (MODULE 22)
+   ========================================================= */
+
+.format-selector-wrap {
+    margin-block: 0.85rem 1.15rem;
+}
+
+.format-selector-label {
+    display: block;
+    margin-bottom: 0.45rem;
+    font-weight: 650;
+    color: var(--color-text);
+}
+
+.format-selector {
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #f7f9fc;
+}
+
+.format-option-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 88px;
+    padding: 0.55rem 1.25rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-muted);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        background-color 150ms ease,
+        color 150ms ease,
+        box-shadow 150ms ease,
+        border-color 150ms ease;
+}
+
+.format-option-btn:hover {
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.format-option-btn.is-active {
+    color: var(--color-primary);
+    background: #ffffff;
+    border-color: rgba(49, 86, 163, 0.2);
+    box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+}
+
+.format-option-btn:focus-visible {
+    outline: 3px solid rgba(49, 86, 163, 0.35);
+    outline-offset: 2px;
+}
+
+.format-info-badge {
+    margin-top: 0.55rem;
+    font-size: 0.86rem;
+    color: var(--color-muted);
+    line-height: 1.45;
+}
+
+.format-info-badge strong {
+    color: var(--color-text);
+}

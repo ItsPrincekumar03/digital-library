@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Upload and manage your private PDFs in the Digital Library.">
+    <meta name="description" content="Upload and manage your private books in the Digital Library.">
 
     <title>Private Library | Digital Library</title>
 
@@ -28,22 +28,37 @@
             <h1>Private Library</h1>
 
             <p class="muted">
-                Upload and manage PDFs that belong only to your account.
+                Upload and manage books that belong only to your account.
             </p>
         </header>
 
         <section class="private-library-upload card" aria-labelledby="upload-heading">
             <div class="private-section-header">
                 <div>
-                    <h2 id="upload-heading">Upload PDF</h2>
+                    <h2 id="upload-heading">Upload Book</h2>
 
                     <p class="muted">
-                        Only PDF files are accepted. Your uploads are not added to the public library.
+                        Select a format to upload to your personal library. Your uploads are not added to the public library.
                     </p>
                 </div>
             </div>
 
             <form id="private-upload-form" enctype="multipart/form-data">
+                <div class="form-field format-selector-wrap">
+                    <label class="format-selector-label" id="private-format-label">Choose book format</label>
+                    <div class="format-selector" role="radiogroup" aria-labelledby="private-format-label">
+                        <button type="button" class="format-option-btn is-active" role="radio" aria-checked="true" data-format="PDF" id="private-format-pdf">
+                            PDF
+                        </button>
+                        <button type="button" class="format-option-btn" role="radio" aria-checked="false" data-format="EPUB" id="private-format-epub">
+                            EPUB
+                        </button>
+                    </div>
+                    <p class="format-info-badge" id="private-format-info">
+                        <strong>PDF:</strong> Standard Portable Document Format (.pdf). Max file size: 10 MB.
+                    </p>
+                </div>
+
                 <div class="private-form-grid">
                     <div class="form-field">
                         <label for="private-title">Title</label>
@@ -52,8 +67,11 @@
                     </div>
 
                     <div class="form-field">
-                        <label for="private-pdf">PDF file</label>
-                        <input id="private-pdf" name="pdf" type="file" accept="application/pdf,.pdf" required>
+                        <label for="private-file" id="private-file-label">
+                            PDF file
+                            <span aria-hidden="true">*</span>
+                        </label>
+                        <input id="private-file" name="file" type="file" accept="application/pdf,.pdf" required>
                     </div>
 
                     <div class="form-field private-description-field">
@@ -75,22 +93,22 @@
 
         <section class="private-library-results" aria-labelledby="private-files-heading">
             <div class="results-heading-row">
-                <h2 id="private-files-heading">My PDFs</h2>
+                <h2 id="private-files-heading">My Books</h2>
 
                 <p id="private-results-summary" class="muted" aria-live="polite"></p>
             </div>
 
             <div id="private-loading" class="loading-state" role="status" aria-live="polite">
-                Loading your PDFs...
+                Loading your books...
             </div>
 
             <div id="private-error" class="form-message error-message" role="alert" hidden></div>
 
             <div id="private-empty" class="card empty-state" hidden>
-                <h3>No private PDFs yet</h3>
+                <h3>No private books yet</h3>
 
                 <p class="muted">
-                    Upload a PDF to start building your personal library.
+                    Upload a PDF or EPUB to start building your personal library.
                 </p>
             </div>
 

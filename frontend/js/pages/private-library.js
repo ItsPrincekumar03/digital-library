@@ -1,11 +1,39 @@
 import { api } from "../api.js";
 import { API_BASE_URL } from "../config.js";
 
+const FORMAT_CONFIG = {
+    PDF: {
+        label: "PDF",
+        extension: ".pdf",
+        accept: "application/pdf,.pdf",
+        mimeTypes: ["application/pdf", "application/x-pdf"],
+        maxSizeBytes: 10 * 1024 * 1024,
+        infoText: "PDF: Standard Portable Document Format (.pdf). Max file size: 10 MB.",
+        inputLabel: "PDF file",
+        submitText: "Upload PDF",
+    },
+    EPUB: {
+        label: "EPUB",
+        extension: ".epub",
+        accept: "application/epub+zip,.epub",
+        mimeTypes: ["application/epub+zip"],
+        maxSizeBytes: 10 * 1024 * 1024,
+        infoText: "EPUB: Electronic publication format (.epub). Max file size: 10 MB.",
+        inputLabel: "EPUB file",
+        submitText: "Upload EPUB",
+    }
+};
+
+let currentFormat = "PDF";
+
 function element(id) {
     return document.getElementById(id);
 }
 
 function showMessage(node, message, type = "") {
+    if (!node) {
+        return;
+    }
     node.textContent = message;
     node.hidden = !message;
 
@@ -18,12 +46,21 @@ function friendlyError(error) {
         return "Your private library could not be loaded. Check your connection and try again.";
     }
 
+    if (
+        error.status === 400 &&
+        typeof error.message === "string" &&
+        error.message.trim() &&
+        error.message !== "Request failed (400)."
+    ) {
+        return error.message;
+    }
+
     if (error.status === 401) {
         return "Please log in to access your private library.";
     }
 
     if (error.status === 404) {
-        return "The requested PDF could not be found.";
+        return "The requested book could not be found.";
     }
 
     if (error.status === 429) {
@@ -69,6 +106,99 @@ function formatDate(value) {
     return date.toLocaleDateString();
 }
 
+function validateUploadFile(file, format) {
+    if (!file) {
+        return { valid: false, message: "Please select a file to upload." };
+    }
+
+    const config = FORMAT_CONFIG[format];
+    if (!config) {
+        return { valid: false, message: "Invalid format selected." };
+    }
+
+    if (file.size === 0) {
+        return { valid: false, message: "The selected file is empty." };
+    }
+
+    if (file.size > config.maxSizeBytes) {
+        const maxMb = Math.round(config.maxSizeBytes / (1024 * 1024));
+        return {
+            valid: false,
+            message: `The selected file exceeds the maximum permitted size of ${maxMb} MB.`
+        };
+    }
+
+    const fileName = (file.name || "").toLowerCase();
+    if (!fileName.endsWith(config.extension)) {
+        return {
+            valid: false,
+            message: `The selected file does not match the chosen format. Please select a valid ${config.label} file (${config.extension}).`
+        };
+    }
+
+    if (file.type && config.mimeTypes.length > 0) {
+        const mime = file.type.toLowerCase();
+        if (!config.mimeTypes.includes(mime) && mime !== "application/octet-stream" && mime !== "") {
+            return {
+                valid: false,
+                message: `The file MIME type ("${file.type}") does not match the chosen format ${config.label}.`
+            };
+        }
+    }
+
+    return { valid: true };
+}
+
+function setFormat(newFormat) {
+    if (!FORMAT_CONFIG[newFormat]) {
+        return;
+    }
+    currentFormat = newFormat;
+    const config = FORMAT_CONFIG[newFormat];
+
+    const pdfBtn = element("private-format-pdf");
+    const epubBtn = element("private-format-epub");
+    const infoNode = element("private-format-info");
+    const labelNode = element("private-file-label");
+    const fileInput = element("private-file") || element("private-pdf");
+    const uploadBtn = element("upload-button");
+    const messageNode = element("upload-message");
+
+    if (pdfBtn && epubBtn) {
+        const isPdf = newFormat === "PDF";
+        pdfBtn.classList.toggle("is-active", isPdf);
+        pdfBtn.setAttribute("aria-checked", isPdf ? "true" : "false");
+        epubBtn.classList.toggle("is-active", !isPdf);
+        epubBtn.setAttribute("aria-checked", !isPdf ? "true" : "false");
+    }
+
+    if (infoNode) {
+        infoNode.innerHTML = `<strong>${config.label}:</strong> ${config.infoText.replace(config.label + ": ", "")}`;
+    }
+
+    if (labelNode) {
+        labelNode.innerHTML = `${config.inputLabel} <span aria-hidden="true">*</span>`;
+    }
+
+    if (uploadBtn) {
+        uploadBtn.textContent = config.submitText;
+    }
+
+    if (fileInput) {
+        fileInput.accept = config.accept;
+
+        if (fileInput.files && fileInput.files[0]) {
+            const fileName = (fileInput.files[0].name || "").toLowerCase();
+            if (!fileName.endsWith(config.extension)) {
+                fileInput.value = "";
+                if (messageNode) {
+                    showMessage(messageNode, `Previous file cleared because it was not a valid ${config.label} file.`, "info");
+                }
+            }
+        }
+    }
+}
+
 function openPrivatePdf(privateFileId) {
     const url = new URL(
         `/api/private-library/${encodeURIComponent(String(privateFileId))}/file`,
@@ -96,7 +226,7 @@ async function deletePrivatePdf(privateFileId, title, button) {
 
         showMessage(
             element("upload-message"),
-            "PDF deleted successfully.",
+            "Book deleted successfully.",
             "success"
         );
 
@@ -122,7 +252,7 @@ function createPrivateFileCard(privateFile) {
     title.textContent =
         typeof privateFile.title === "string" && privateFile.title.trim()
             ? privateFile.title
-            : "Untitled PDF";
+            : "Untitled book";
 
     const meta = document.createElement("p");
     meta.className = "private-file-meta";
@@ -131,7 +261,13 @@ function createPrivateFileCard(privateFile) {
     fileName.textContent =
         typeof privateFile.original_file_name === "string"
             ? privateFile.original_file_name
-            : "PDF file";
+            : "Book file";
+
+    const formatSpan = document.createElement("span");
+    const format = typeof privateFile.file_format === "string" && privateFile.file_format.trim()
+        ? privateFile.file_format.toUpperCase()
+        : (privateFile.original_file_name?.toLowerCase().endsWith(".epub") ? "EPUB" : "PDF");
+    formatSpan.textContent = format;
 
     const size = document.createElement("span");
     size.textContent = formatSize(privateFile.file_size);
@@ -139,7 +275,7 @@ function createPrivateFileCard(privateFile) {
     const date = document.createElement("span");
     date.textContent = `Uploaded ${formatDate(privateFile.created_at)}`;
 
-    meta.append(fileName, size, date);
+    meta.append(fileName, formatSpan, size, date);
 
     content.append(title, meta);
 
@@ -191,13 +327,13 @@ function renderPrivateFiles(privateFiles) {
 
     if (!privateFiles.length) {
         empty.hidden = false;
-        summary.textContent = "0 PDFs";
+        summary.textContent = "0 books";
         return;
     }
 
     empty.hidden = true;
     summary.textContent =
-        `${privateFiles.length} PDF${privateFiles.length === 1 ? "" : "s"}`;
+        `${privateFiles.length} book${privateFiles.length === 1 ? "" : "s"}`;
 
     for (const privateFile of privateFiles) {
         list.append(createPrivateFileCard(privateFile));
@@ -218,7 +354,7 @@ async function loadPrivateFiles() {
         const privateFiles = response?.data?.privateFiles;
 
         if (!Array.isArray(privateFiles)) {
-            throw new Error("The private library response did not contain a PDF list.");
+            throw new Error("The private library response did not contain a book list.");
         }
 
         renderPrivateFiles(privateFiles);
@@ -237,27 +373,83 @@ function bindUploadForm() {
     const form = element("private-upload-form");
     const uploadButton = element("upload-button");
     const message = element("upload-message");
+    const fileInput = element("private-file") || element("private-pdf");
+    const pdfBtn = element("private-format-pdf");
+    const epubBtn = element("private-format-epub");
+
+    if (pdfBtn) {
+        pdfBtn.addEventListener("click", () => setFormat("PDF"));
+        pdfBtn.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                e.preventDefault();
+                epubBtn?.focus();
+                setFormat("EPUB");
+            }
+        });
+    }
+
+    if (epubBtn) {
+        epubBtn.addEventListener("click", () => setFormat("EPUB"));
+        epubBtn.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                e.preventDefault();
+                pdfBtn?.focus();
+                setFormat("PDF");
+            }
+        });
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) {
+                return;
+            }
+            const validation = validateUploadFile(file, currentFormat);
+            if (!validation.valid) {
+                showMessage(message, validation.message, "error");
+                fileInput.value = "";
+            } else {
+                showMessage(message, "");
+            }
+        });
+    }
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        const fileInput = element("private-pdf");
+        const input = element("private-file") || element("private-pdf");
+        const file = input?.files && input.files[0];
 
-        if (!fileInput.files || fileInput.files.length === 0) {
-            showMessage(message, "Choose a PDF file to upload.", "error");
+        const validation = validateUploadFile(file, currentFormat);
+        if (!validation.valid) {
+            showMessage(message, validation.message, "error");
             return;
         }
 
-        const formData = new FormData(form);
+        const titleInput = element("private-title");
+        const descInput = element("private-description");
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("format", currentFormat);
+
+        if (titleInput && titleInput.value.trim()) {
+            formData.append("title", titleInput.value.trim());
+        }
+        if (descInput && descInput.value.trim()) {
+            formData.append("description", descInput.value.trim());
+        }
 
         uploadButton.disabled = true;
-        showMessage(message, "Uploading PDF...");
+        showMessage(message, `Uploading ${currentFormat}...`);
 
         try {
             await api.post("/private-library/upload", formData);
 
             form.reset();
-            showMessage(message, "PDF uploaded successfully.", "success");
+            setFormat(currentFormat);
+            showMessage(message, `${currentFormat} uploaded successfully.`, "success");
             await loadPrivateFiles();
         } catch (error) {
             showMessage(message, friendlyError(error), "error");
@@ -268,6 +460,7 @@ function bindUploadForm() {
 }
 
 export async function init() {
+    setFormat("PDF");
     bindUploadForm();
     await loadPrivateFiles();
 }

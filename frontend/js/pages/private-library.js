@@ -1,30 +1,22 @@
 import { api } from "../api.js";
 import { API_BASE_URL } from "../config.js";
+import { loadCoverIntoElements } from "../coverLoader.js";
+import { ui } from "../ui.js";
 
 const FORMAT_CONFIG = {
     PDF: {
         label: "PDF",
         extension: ".pdf",
-        accept: "application/pdf,.pdf",
+        accept: ".pdf,application/pdf",
         mimeTypes: ["application/pdf", "application/x-pdf"],
         maxSizeBytes: 10 * 1024 * 1024,
-        infoText: "PDF: Standard Portable Document Format (.pdf). Max file size: 10 MB.",
+        infoText: "Supported upload format: PDF only (.pdf). Max file size: 10 MB. Supports both Original PDF view and PDF-derived EPUB-style reflowable reading.",
         inputLabel: "PDF file",
         submitText: "Upload PDF",
-    },
-    EPUB: {
-        label: "EPUB",
-        extension: ".epub",
-        accept: "application/epub+zip,.epub",
-        mimeTypes: ["application/epub+zip"],
-        maxSizeBytes: 10 * 1024 * 1024,
-        infoText: "EPUB: Electronic publication format (.epub). Max file size: 10 MB.",
-        inputLabel: "EPUB file",
-        submitText: "Upload EPUB",
     }
 };
 
-let currentFormat = "PDF";
+const currentFormat = "PDF";
 
 function element(id) {
     return document.getElementById(id);
@@ -106,15 +98,12 @@ function formatDate(value) {
     return date.toLocaleDateString();
 }
 
-function validateUploadFile(file, format) {
+async function validateUploadFile(file) {
     if (!file) {
-        return { valid: false, message: "Please select a file to upload." };
+        return { valid: false, message: "Please select a PDF file to upload." };
     }
 
-    const config = FORMAT_CONFIG[format];
-    if (!config) {
-        return { valid: false, message: "Invalid format selected." };
-    }
+    const config = FORMAT_CONFIG.PDF;
 
     if (file.size === 0) {
         return { valid: false, message: "The selected file is empty." };
@@ -132,70 +121,40 @@ function validateUploadFile(file, format) {
     if (!fileName.endsWith(config.extension)) {
         return {
             valid: false,
-            message: `The selected file does not match the chosen format. Please select a valid ${config.label} file (${config.extension}).`
+            message: "Only PDF files (.pdf) are allowed."
         };
     }
 
-    if (file.type && config.mimeTypes.length > 0) {
+    if (file.type) {
         const mime = file.type.toLowerCase();
         if (!config.mimeTypes.includes(mime) && mime !== "application/octet-stream" && mime !== "") {
             return {
                 valid: false,
-                message: `The file MIME type ("${file.type}") does not match the chosen format ${config.label}.`
+                message: `Unsupported file type ("${file.type}"). Only PDF files (.pdf) are allowed.`
             };
         }
+    }
+
+    try {
+        const headerBytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+        const sig = String.fromCharCode(...headerBytes);
+        if (sig !== "%PDF-") {
+            return {
+                valid: false,
+                message: "The selected file is not a valid PDF document."
+            };
+        }
+    } catch (_) {
+        // Server performs full signature validation as well.
     }
 
     return { valid: true };
 }
 
-function setFormat(newFormat) {
-    if (!FORMAT_CONFIG[newFormat]) {
-        return;
-    }
-    currentFormat = newFormat;
-    const config = FORMAT_CONFIG[newFormat];
-
-    const pdfBtn = element("private-format-pdf");
-    const epubBtn = element("private-format-epub");
-    const infoNode = element("private-format-info");
-    const labelNode = element("private-file-label");
+function setFormat() {
     const fileInput = element("private-file") || element("private-pdf");
-    const uploadBtn = element("upload-button");
-    const messageNode = element("upload-message");
-
-    if (pdfBtn && epubBtn) {
-        const isPdf = newFormat === "PDF";
-        pdfBtn.classList.toggle("is-active", isPdf);
-        pdfBtn.setAttribute("aria-checked", isPdf ? "true" : "false");
-        epubBtn.classList.toggle("is-active", !isPdf);
-        epubBtn.setAttribute("aria-checked", !isPdf ? "true" : "false");
-    }
-
-    if (infoNode) {
-        infoNode.innerHTML = `<strong>${config.label}:</strong> ${config.infoText.replace(config.label + ": ", "")}`;
-    }
-
-    if (labelNode) {
-        labelNode.innerHTML = `${config.inputLabel} <span aria-hidden="true">*</span>`;
-    }
-
-    if (uploadBtn) {
-        uploadBtn.textContent = config.submitText;
-    }
-
     if (fileInput) {
-        fileInput.accept = config.accept;
-
-        if (fileInput.files && fileInput.files[0]) {
-            const fileName = (fileInput.files[0].name || "").toLowerCase();
-            if (!fileName.endsWith(config.extension)) {
-                fileInput.value = "";
-                if (messageNode) {
-                    showMessage(messageNode, `Previous file cleared because it was not a valid ${config.label} file.`, "info");
-                }
-            }
-        }
+        fileInput.accept = FORMAT_CONFIG.PDF.accept;
     }
 }
 
@@ -242,17 +201,57 @@ async function deletePrivatePdf(privateFileId, title, button) {
     }
 }
 
+function openInReader(privateFileId, mode = "reflow") {
+    const readerUrl = new URL("read.html", window.location.href);
+    readerUrl.searchParams.set("privateId", String(privateFileId));
+    readerUrl.searchParams.set("mode", mode);
+    window.location.assign(readerUrl.href);
+}
+
 function createPrivateFileCard(privateFile) {
     const card = document.createElement("article");
     card.className = "private-file-card";
 
-    const content = document.createElement("div");
-
-    const title = document.createElement("h3");
-    title.textContent =
+    const titleText =
         typeof privateFile.title === "string" && privateFile.title.trim()
             ? privateFile.title
             : "Untitled book";
+
+    const format = typeof privateFile.file_format === "string" && privateFile.file_format.trim()
+        ? privateFile.file_format.toUpperCase()
+        : (privateFile.original_file_name?.toLowerCase().endsWith(".epub") ? "EPUB" : "PDF");
+
+    const coverWrap = document.createElement("div");
+    coverWrap.className = "private-file-cover-wrap";
+    const coverImg = document.createElement("img");
+    coverImg.className = "private-file-cover";
+    coverImg.hidden = true;
+    const coverPlaceholder = document.createElement("div");
+    coverPlaceholder.className = "cover-placeholder";
+    coverPlaceholder.textContent = format;
+    coverWrap.append(coverImg, coverPlaceholder);
+
+    loadCoverIntoElements(coverImg, coverPlaceholder, {
+        coverPath: privateFile.cover_url || "",
+        fallbackApiPath: `/private-library/${encodeURIComponent(String(privateFile.private_file_id))}/cover`,
+        altText: `Cover for ${titleText}`,
+    });
+
+    const content = document.createElement("div");
+
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "collection-badge-row";
+    const uploadedBadge = document.createElement("span");
+    uploadedBadge.className = "collection-badge collection-badge-uploaded";
+    uploadedBadge.textContent = "Uploaded File";
+    const formatBadge = document.createElement("span");
+    formatBadge.className = "collection-badge collection-badge-format";
+    formatBadge.textContent = format;
+    badgeRow.append(uploadedBadge, formatBadge);
+    content.append(badgeRow);
+
+    const title = document.createElement("h3");
+    title.textContent = titleText;
 
     const meta = document.createElement("p");
     meta.className = "private-file-meta";
@@ -264,9 +263,6 @@ function createPrivateFileCard(privateFile) {
             : "Book file";
 
     const formatSpan = document.createElement("span");
-    const format = typeof privateFile.file_format === "string" && privateFile.file_format.trim()
-        ? privateFile.file_format.toUpperCase()
-        : (privateFile.original_file_name?.toLowerCase().endsWith(".epub") ? "EPUB" : "PDF");
     formatSpan.textContent = format;
 
     const size = document.createElement("span");
@@ -276,7 +272,6 @@ function createPrivateFileCard(privateFile) {
     date.textContent = `Uploaded ${formatDate(privateFile.created_at)}`;
 
     meta.append(fileName, formatSpan, size, date);
-
     content.append(title, meta);
 
     if (
@@ -292,13 +287,43 @@ function createPrivateFileCard(privateFile) {
     const actions = document.createElement("div");
     actions.className = "private-file-actions";
 
-    const openButton = document.createElement("button");
-    openButton.type = "button";
-    openButton.className = "button button-primary";
-    openButton.textContent = "Open";
-    openButton.addEventListener("click", () => {
-        openPrivatePdf(privateFile.private_file_id);
-    });
+    if (format === "PDF") {
+        const originalBtn = document.createElement("button");
+        originalBtn.type = "button";
+        originalBtn.className = "button button-primary";
+        originalBtn.textContent = "Original PDF";
+        originalBtn.addEventListener("click", () => {
+            openInReader(privateFile.private_file_id, "pdf");
+        });
+        actions.append(originalBtn);
+
+        const readBtn = document.createElement("button");
+        readBtn.type = "button";
+        readBtn.className = "button button-secondary";
+        readBtn.textContent = "Read (EPUB-style)";
+        readBtn.addEventListener("click", () => {
+            openInReader(privateFile.private_file_id, "reflow");
+        });
+        actions.append(readBtn);
+    } else {
+        const readBtn = document.createElement("button");
+        readBtn.type = "button";
+        readBtn.className = "button button-primary";
+        readBtn.textContent = "Read";
+        readBtn.addEventListener("click", () => {
+            openInReader(privateFile.private_file_id, "reflow");
+        });
+        actions.append(readBtn);
+
+        const openRawBtn = document.createElement("button");
+        openRawBtn.type = "button";
+        openRawBtn.className = "button button-secondary";
+        openRawBtn.textContent = "Download";
+        openRawBtn.addEventListener("click", () => {
+            openPrivatePdf(privateFile.private_file_id);
+        });
+        actions.append(openRawBtn);
+    }
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
@@ -312,10 +337,152 @@ function createPrivateFileCard(privateFile) {
         );
     });
 
-    actions.append(openButton, deleteButton);
-    card.append(content, actions);
+    actions.append(deleteButton);
+    card.append(coverWrap, content, actions);
 
     return card;
+}
+
+function createSavedBookCard(savedBook) {
+    const card = document.createElement("article");
+    card.className = "private-file-card";
+
+    const coverWrap = document.createElement("div");
+    coverWrap.className = "private-file-cover-wrap";
+    const coverImg = document.createElement("img");
+    coverImg.className = "private-file-cover";
+    coverImg.hidden = true;
+    const coverPlaceholder = document.createElement("div");
+    coverPlaceholder.className = "cover-placeholder";
+    coverPlaceholder.textContent = "Saved";
+    const titleText = typeof savedBook.title === "string" && savedBook.title.trim() ? savedBook.title : "Untitled book";
+    loadCoverIntoElements(coverImg, coverPlaceholder, {
+        coverPath: savedBook.cover_path,
+        fallbackApiPath: `/books/${encodeURIComponent(String(savedBook.book_id))}/cover`,
+        altText: `Cover of ${titleText}`,
+    });
+    coverWrap.append(coverImg, coverPlaceholder);
+
+    const content = document.createElement("div");
+    content.className = "private-file-content";
+
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "collection-badge-row";
+    const savedBadge = document.createElement("span");
+    savedBadge.className = "collection-badge collection-badge-saved";
+    savedBadge.textContent = "Saved Public Book";
+    badgeRow.append(savedBadge);
+    if (savedBook.file_format) {
+        const fmtBadge = document.createElement("span");
+        fmtBadge.className = "collection-badge collection-badge-format";
+        fmtBadge.textContent = String(savedBook.file_format).toUpperCase();
+        badgeRow.append(fmtBadge);
+    }
+    content.append(badgeRow);
+
+    const title = document.createElement("h3");
+    title.textContent = titleText;
+    content.append(title);
+
+    const authors = Array.isArray(savedBook.authors) ? savedBook.authors.map((a) => a.name).filter(Boolean) : [];
+    const categories = Array.isArray(savedBook.categories) ? savedBook.categories.map((c) => c.name).filter(Boolean) : [];
+    if (authors.length || categories.length) {
+        const rel = document.createElement("p");
+        rel.className = "saved-book-relations";
+        const parts = [];
+        if (authors.length) parts.push(`By ${authors.join(", ")}`);
+        if (categories.length) parts.push(categories.join(", "));
+        rel.textContent = parts.join(" | ");
+        content.append(rel);
+    }
+
+    const description = document.createElement("p");
+    description.className = "private-file-description";
+    description.textContent = typeof savedBook.description === "string" && savedBook.description.trim()
+        ? savedBook.description
+        : "Saved from the public catalog.";
+    content.append(description);
+
+    const meta = document.createElement("p");
+    meta.className = "private-file-meta";
+    const savedDate = formatDate(savedBook.saved_at);
+    meta.textContent = savedDate ? `Saved on ${savedDate}` : "Saved to your private library";
+    content.append(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "private-file-actions";
+    const encodedId = encodeURIComponent(String(savedBook.book_id));
+    const isPdf = String(savedBook.file_format || "").toUpperCase() === "PDF" && savedBook.has_original_file;
+
+    if (isPdf) {
+        const pdfLink = document.createElement("a");
+        pdfLink.className = "button button-primary";
+        pdfLink.href = `read.html?id=${encodedId}&mode=pdf`;
+        pdfLink.textContent = "Original PDF";
+        actions.append(pdfLink);
+        const reflowLink = document.createElement("a");
+        reflowLink.className = "button button-secondary";
+        reflowLink.href = `read.html?id=${encodedId}&mode=reflow`;
+        reflowLink.textContent = "Read (EPUB-style)";
+        actions.append(reflowLink);
+    } else {
+        const readLink = document.createElement("a");
+        readLink.className = "button button-primary";
+        readLink.href = `read.html?id=${encodedId}`;
+        readLink.textContent = "Read";
+        actions.append(readLink);
+    }
+
+    const detailsLink = document.createElement("a");
+    detailsLink.className = "button button-secondary";
+    detailsLink.href = `book.html?id=${encodedId}`;
+    detailsLink.textContent = "Details";
+    actions.append(detailsLink);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "button button-danger";
+    removeBtn.textContent = "Remove from My Library";
+    removeBtn.addEventListener("click", async () => {
+        const ok = window.confirm(`Remove "${titleText}" from your private library? The original book in the public library will not be deleted.`);
+        if (!ok) return;
+        removeBtn.disabled = true;
+        const savedMsgBox = element("saved-books-message");
+        showMessage(savedMsgBox, "");
+        try {
+            await api.delete(`/private-library/saved/${encodedId}`);
+            ui.showToast(`Removed "${titleText}" from your private library.`, "info");
+            showMessage(savedMsgBox, `"${titleText}" was removed from your private library.`, "success");
+            await loadPrivateFiles();
+        } catch (err) {
+            const msg = friendlyError(err);
+            showMessage(savedMsgBox, msg, "error");
+            ui.showToast(msg, "error");
+            removeBtn.disabled = false;
+        }
+    });
+    actions.append(removeBtn);
+
+    card.append(coverWrap, content, actions);
+    return card;
+}
+
+function renderSavedBooks(savedBooks) {
+    const list = element("saved-books-list");
+    const empty = element("saved-books-empty");
+    const summary = element("saved-results-summary");
+    if (!list || !empty || !summary) return;
+    list.replaceChildren();
+    if (!savedBooks.length) {
+        empty.hidden = false;
+        summary.textContent = "0 saved books";
+        return;
+    }
+    empty.hidden = true;
+    summary.textContent = `${savedBooks.length} saved book${savedBooks.length === 1 ? "" : "s"}`;
+    for (const savedBook of savedBooks) {
+        list.append(createSavedBookCard(savedBook));
+    }
 }
 
 function renderPrivateFiles(privateFiles) {
@@ -357,6 +524,8 @@ async function loadPrivateFiles() {
             throw new Error("The private library response did not contain a book list.");
         }
 
+        const savedBooks = Array.isArray(response?.data?.savedBooks) ? response.data.savedBooks : [];
+        renderSavedBooks(savedBooks);
         renderPrivateFiles(privateFiles);
     } catch (error) {
         list.replaceChildren();
@@ -374,38 +543,14 @@ function bindUploadForm() {
     const uploadButton = element("upload-button");
     const message = element("upload-message");
     const fileInput = element("private-file") || element("private-pdf");
-    const pdfBtn = element("private-format-pdf");
-    const epubBtn = element("private-format-epub");
-
-    if (pdfBtn) {
-        pdfBtn.addEventListener("click", () => setFormat("PDF"));
-        pdfBtn.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-                e.preventDefault();
-                epubBtn?.focus();
-                setFormat("EPUB");
-            }
-        });
-    }
-
-    if (epubBtn) {
-        epubBtn.addEventListener("click", () => setFormat("EPUB"));
-        epubBtn.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-                e.preventDefault();
-                pdfBtn?.focus();
-                setFormat("PDF");
-            }
-        });
-    }
-
     if (fileInput) {
-        fileInput.addEventListener("change", () => {
+        fileInput.accept = FORMAT_CONFIG.PDF.accept;
+        fileInput.addEventListener("change", async () => {
             const file = fileInput.files && fileInput.files[0];
             if (!file) {
                 return;
             }
-            const validation = validateUploadFile(file, currentFormat);
+            const validation = await validateUploadFile(file);
             if (!validation.valid) {
                 showMessage(message, validation.message, "error");
                 fileInput.value = "";
@@ -421,7 +566,7 @@ function bindUploadForm() {
         const input = element("private-file") || element("private-pdf");
         const file = input?.files && input.files[0];
 
-        const validation = validateUploadFile(file, currentFormat);
+        const validation = await validateUploadFile(file);
         if (!validation.valid) {
             showMessage(message, validation.message, "error");
             return;

@@ -47,7 +47,7 @@
 
 .private-file-card {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
     gap: 1rem;
     align-items: center;
     padding: 1rem;
@@ -93,5 +93,127 @@
 
     .private-file-actions {
         justify-content: flex-start;
+    }
+}
+
+.private-file-cover-wrap {
+    display: grid;
+    width: 72px;
+    height: 104px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: #e9edf5;
+}
+
+.private-file-cover {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.private-file-cover-wrap .cover-placeholder {
+    padding: 0.35rem;
+    font-size: 0.72rem;
+    text-align: center;
+    color: var(--color-muted);
+}
+
+
+/* =========================================================
+   MODULE 27.5: SAVED PUBLIC BOOKS, 2:3 COVERS & MOBILE
+   ========================================================= */
+
+.private-library-section {
+    margin-top: 1.75rem;
+}
+
+.private-file-cover-wrap {
+    width: 100px;
+    height: auto;
+    aspect-ratio: 2 / 3;
+    padding: 0.25rem;
+    background: linear-gradient(145deg, #f2f5fa, #e7edf6);
+}
+
+.private-file-card {
+    grid-template-columns: 100px minmax(0, 1fr) auto;
+}
+
+.collection-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.45rem;
+}
+
+.collection-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.collection-badge-saved {
+    background: #ecfdf3;
+    border: 1px solid #b7e2c7;
+    color: #0e6b3f;
+}
+
+.collection-badge-uploaded {
+    background: #eef3fc;
+    border: 1px solid #d2def7;
+    color: var(--color-primary);
+}
+
+.collection-badge-format {
+    background: #f5f7fb;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+}
+
+.saved-book-relations {
+    margin: 0.25rem 0 0;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+    .private-file-card {
+        grid-template-columns: 100px minmax(0, 1fr);
+    }
+
+    .private-file-actions {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .private-file-actions .button {
+        flex: 1 1 130px;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 400px) {
+    .private-file-card {
+        grid-template-columns: 1fr;
+    }
+
+    .private-file-cover-wrap {
+        width: 120px;
+        height: auto;
+        aspect-ratio: 2 / 3;
+        margin-inline: auto;
+    }
+
+    .private-file-actions .button {
+        width: 100%;
+        flex: none;
     }
 }

@@ -395,6 +395,8 @@ CREATE TABLE IF NOT EXISTS private_library_files (
     storage_path       VARCHAR(500) NOT NULL,
     mime_type          VARCHAR(100) NOT NULL,
     file_format        VARCHAR(10) NULL,
+    cover_image        VARCHAR(255) NULL,
+    cover_path         VARCHAR(255) NULL,
     file_size          BIGINT UNSIGNED NOT NULL,
     created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -411,4 +413,66 @@ CREATE TABLE IF NOT EXISTS private_library_files (
     INDEX idx_private_library_files_created_at (created_at)
 ) ENGINE=InnoDB;
 
+-- =====================================================
+-- 17. revoked_tokens (Module 18: persistent JWT revocation)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    token_hash CHAR(64) NOT NULL PRIMARY KEY,
+    user_id    BIGINT UNSIGNED NULL,
+    revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+
+    CONSTRAINT fk_revoked_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+
+    INDEX idx_revoked_tokens_expires_at (expires_at)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- 18. auth_events (Module 27: authentication audit log)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS auth_events (
+    event_id    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_type  ENUM(
+                    'REGISTER_SUCCESS',
+                    'LOGIN_SUCCESS',
+                    'LOGIN_FAILURE',
+                    'LOGOUT',
+                    'PASSWORD_CHANGED',
+                    'PASSWORD_CHANGE_FAILED'
+                ) NOT NULL,
+    user_id     BIGINT UNSIGNED NULL,
+    ip_address  VARCHAR(45) NULL,
+    user_agent  VARCHAR(500) NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_auth_events_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+
+    INDEX idx_auth_events_user_id (user_id),
+    INDEX idx_auth_events_event_type (event_type),
+    INDEX idx_auth_events_created_at (created_at)
+) ENGINE=InnoDB;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- =========================================================
+-- MODULE 27.5: SAVED PUBLIC BOOKS IN PRIVATE LIBRARY
+-- =========================================================
+CREATE TABLE IF NOT EXISTS private_saved_books (
+    saved_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    book_id BIGINT UNSIGNED NOT NULL,
+    saved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_private_saved_books_user_book (user_id, book_id),
+    INDEX idx_private_saved_books_user_saved_at (user_id, saved_at),
+    CONSTRAINT fk_private_saved_books_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_private_saved_books_book
+        FOREIGN KEY (book_id) REFERENCES books(book_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;

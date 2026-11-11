@@ -397,3 +397,72 @@
 .format-info-badge strong {
     color: var(--color-text);
 }
+
+
+/* Module 27.5: Touch-friendly & narrow-screen form/button safeguards */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.format-selector {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 767px) {
+    .button {
+        min-height: 44px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="date"],
+    input[type="number"],
+    input[type="url"],
+    input[type="file"],
+    select,
+    textarea {
+        min-height: 44px;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .toast-region {
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+    }
+
+    .card {
+        padding: 1.05rem;
+    }
+}
+
+
+.button-saved {
+    border-color: #b7e2c7;
+    background: #ecfdf3;
+    color: #0e6b3f;
+    cursor: default;
+}
+
+.button-saved:disabled {
+    cursor: default;
+    opacity: 0.92;
+}
+
+.button-danger {
+    border-color: transparent;
+    background: var(--color-danger, #c43c3c);
+    color: #ffffff;
+}
+
+.button-danger:hover {
+    background: #a72f2f;
+    color: #ffffff;
+}

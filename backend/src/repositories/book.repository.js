@@ -83,28 +83,71 @@ async function updateProcessedPath(bookId, processedName) {
     return result;
 }
 
-// sortColumn / sortDirection are checked against a whitelist in the service layer.
-async function findAllPaginated({ limit, offset, sortColumn, sortDirection, status }) {
+function escapeLikePattern(value) {
+    return String(value).replace(/[~%_]/g, (ch) => '~' + ch);
+}
+
+function buildBookFilterWhere({ status, categoryId, search } = {}) {
+    const conditions = [];
+    const params = [];
+
     if (status) {
-        const [rows] = await pool.query(
-            `SELECT * FROM books WHERE status = ? ORDER BY ${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
-            [status, limit, offset]
-        );
-        return rows;
+        conditions.push('b.status = ?');
+        params.push(status);
     }
+
+    if (Number.isInteger(categoryId) && categoryId > 0) {
+        conditions.push(
+            `EXISTS (
+                SELECT 1
+                  FROM book_categories bc
+                 WHERE bc.book_id = b.book_id
+                   AND bc.category_id = ?
+            )`
+        );
+        params.push(categoryId);
+    }
+
+    if (typeof search === 'string' && search.trim()) {
+        const pattern = `%${escapeLikePattern(search.trim())}%`;
+        conditions.push(
+            `(
+                b.title LIKE ? ESCAPE '~'
+                OR COALESCE(b.description, '') LIKE ? ESCAPE '~'
+                OR EXISTS (
+                    SELECT 1
+                      FROM book_authors ba
+                      INNER JOIN authors a ON a.author_id = ba.author_id
+                     WHERE ba.book_id = b.book_id
+                       AND a.name LIKE ? ESCAPE '~'
+                )
+            )`
+        );
+        params.push(pattern, pattern, pattern);
+    }
+
+    return {
+        whereSql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+        params,
+    };
+}
+
+// sortColumn / sortDirection are checked against a whitelist in the service layer.
+async function findAllPaginated({ limit, offset, sortColumn, sortDirection, status, categoryId, search }) {
+    const { whereSql, params } = buildBookFilterWhere({ status, categoryId, search });
     const [rows] = await pool.query(
-        `SELECT * FROM books ORDER BY ${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
-        [limit, offset]
+        `SELECT b.* FROM books b ${whereSql} ORDER BY b.${sortColumn} ${sortDirection} LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
     );
     return rows;
 }
 
-async function countAll(status) {
-    if (status) {
-        const [rows] = await pool.query('SELECT COUNT(*) AS total FROM books WHERE status = ?', [status]);
-        return rows[0].total;
-    }
-    const [rows] = await pool.query('SELECT COUNT(*) AS total FROM books');
+async function countAll(filterOrStatus) {
+    const filters = typeof filterOrStatus === 'string'
+        ? { status: filterOrStatus }
+        : (filterOrStatus || {});
+    const { whereSql, params } = buildBookFilterWhere(filters);
+    const [rows] = await pool.query(`SELECT COUNT(*) AS total FROM books b ${whereSql}`, params);
     return rows[0].total;
 }
 

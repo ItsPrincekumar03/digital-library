@@ -100,3 +100,16 @@ p:last-child {
 [hidden] {
     display: none !important;
 }
+
+
+/* Module 27.5: Global responsive safeguards */
+html,
+body {
+    overflow-x: clip;
+}
+
+img,
+svg,
+iframe {
+    max-width: 100%;
+}

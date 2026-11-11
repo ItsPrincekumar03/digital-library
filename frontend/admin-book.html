@@ -76,7 +76,31 @@
                         —
                     </span>
                 </div>
+
+                <div>
+                    <span class="admin-info-label">
+                        Cover preview
+                    </span>
+                    <div class="admin-cover-preview-wrap">
+                        <img id="book-cover-preview" class="admin-cover-preview" alt="" hidden>
+                        <div id="book-cover-placeholder" class="cover-placeholder" aria-hidden="true">No cover</div>
+                    </div>
+                </div>
             </div>
+
+            <form id="book-cover-form" class="admin-cover-upload-form" enctype="multipart/form-data">
+                <div class="admin-form-field admin-form-field-full">
+                    <label for="book-cover-file">Upload cover image (JPG, PNG, WEBP, GIF — max 5 MB)</label>
+                    <input id="book-cover-file" name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" required>
+                </div>
+                <p id="book-cover-message" class="form-message" role="status" aria-live="polite" hidden></p>
+                <div class="button-row">
+                    <button id="book-cover-submit" class="button button-primary button-small" type="submit">Upload cover</button>
+                    <a id="admin-preview-reader" class="button button-secondary button-small" href="read.html">Preview in Reader</a>
+                    <button id="admin-save-to-library" class="button button-secondary button-small" type="button" hidden>Save to My Library</button>
+                    <button id="admin-remove-from-library" class="button button-danger button-small" type="button" hidden>Remove from My Library</button>
+                </div>
+            </form>
         </section>
 
         <section class="admin-info-card" aria-labelledby="book-pdf-heading">
@@ -89,7 +113,7 @@
                     </h2>
 
                     <p class="muted">
-                        Attach the original PDF or EPUB file to this book. Uploading does not publish the book.
+                        Attach the original PDF file to this book. Uploading does not publish the book.
                     </p>
                 </div>
             </div>
@@ -118,17 +142,8 @@
 
             <form id="book-pdf-form" enctype="multipart/form-data">
                 <div class="form-field format-selector-wrap">
-                    <label class="format-selector-label" id="admin-format-label">Choose book format</label>
-                    <div class="format-selector" role="radiogroup" aria-labelledby="admin-format-label">
-                        <button type="button" class="format-option-btn is-active" role="radio" aria-checked="true" data-format="PDF" id="admin-format-pdf">
-                            PDF
-                        </button>
-                        <button type="button" class="format-option-btn" role="radio" aria-checked="false" data-format="EPUB" id="admin-format-epub">
-                            EPUB
-                        </button>
-                    </div>
                     <p class="format-info-badge" id="admin-format-info">
-                        <strong>PDF:</strong> Standard Portable Document Format (.pdf). Max file size: 10 MB.
+                        <strong>Supported upload format: PDF only (.pdf)</strong> ? Max file size: 10 MB. Supports both Original PDF reading and PDF-derived EPUB-style reflowable reading.
                     </p>
                 </div>
 
@@ -138,7 +153,7 @@
                         <span aria-hidden="true">*</span>
                     </label>
 
-                    <input id="book-pdf-file" name="file" type="file" accept="application/pdf,.pdf" required>
+                    <input id="book-pdf-file" name="file" type="file" accept=".pdf,application/pdf" required>
                 </div>
 
                 <p id="book-pdf-message" class="form-message" role="status" aria-live="polite" hidden></p>

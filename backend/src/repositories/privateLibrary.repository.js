@@ -9,12 +9,14 @@ async function create({
     storagePath,
     mimeType,
     fileSize,
-    fileFormat
+    fileFormat,
+    coverImage,
+    coverPath
 }) {
     const [result] = await pool.query(
         `INSERT INTO private_library_files
-            (owner_id, title, description, original_file_name, stored_file_name, storage_path, mime_type, file_size, file_format)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (owner_id, title, description, original_file_name, stored_file_name, storage_path, mime_type, file_size, file_format, cover_image, cover_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             ownerId,
             title,
@@ -24,11 +26,23 @@ async function create({
             storagePath,
             mimeType,
             fileSize,
-            fileFormat || null
+            fileFormat || null,
+            coverImage || null,
+            coverPath || null
         ]
     );
 
     return result.insertId;
+}
+
+async function updateCoverMetadata(privateFileId, ownerId, { coverImage, coverPath }) {
+    const [result] = await pool.query(
+        `UPDATE private_library_files
+         SET cover_image = ?, cover_path = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE private_file_id = ? AND owner_id = ?`,
+        [coverImage || null, coverPath || null, privateFileId, ownerId]
+    );
+    return result.affectedRows > 0;
 }
 
 async function findAllByOwner(ownerId) {
@@ -67,6 +81,7 @@ async function deleteByIdAndOwner(privateFileId, ownerId) {
 
 module.exports = {
     create,
+    updateCoverMetadata,
     findAllByOwner,
     findByIdAndOwner,
     deleteByIdAndOwner

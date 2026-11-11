@@ -36,6 +36,7 @@ const DIRECTIVES = {
     fontSrc: ["'self'"],
     connectSrc: ["'self'"],
     workerSrc: ["'self'", 'blob:'],
+    frameSrc: ["'self'", 'blob:'],
     mediaSrc: ["'none'"],
     objectSrc: ["'none'"],
     frameAncestors: ["'none'"],

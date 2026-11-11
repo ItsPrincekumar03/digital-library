@@ -38,24 +38,15 @@
                     <h2 id="upload-heading">Upload Book</h2>
 
                     <p class="muted">
-                        Select a format to upload to your personal library. Your uploads are not added to the public library.
+                        Upload a PDF book to your personal library. Your uploads are not added to the public library.
                     </p>
                 </div>
             </div>
 
             <form id="private-upload-form" enctype="multipart/form-data">
                 <div class="form-field format-selector-wrap">
-                    <label class="format-selector-label" id="private-format-label">Choose book format</label>
-                    <div class="format-selector" role="radiogroup" aria-labelledby="private-format-label">
-                        <button type="button" class="format-option-btn is-active" role="radio" aria-checked="true" data-format="PDF" id="private-format-pdf">
-                            PDF
-                        </button>
-                        <button type="button" class="format-option-btn" role="radio" aria-checked="false" data-format="EPUB" id="private-format-epub">
-                            EPUB
-                        </button>
-                    </div>
                     <p class="format-info-badge" id="private-format-info">
-                        <strong>PDF:</strong> Standard Portable Document Format (.pdf). Max file size: 10 MB.
+                        <strong>Supported upload format: PDF only (.pdf)</strong> ? Max file size: 10 MB. Supports both Original PDF view and PDF-derived EPUB-style reflowable reading.
                     </p>
                 </div>
 
@@ -71,7 +62,7 @@
                             PDF file
                             <span aria-hidden="true">*</span>
                         </label>
-                        <input id="private-file" name="file" type="file" accept="application/pdf,.pdf" required>
+                        <input id="private-file" name="file" type="file" accept=".pdf,application/pdf" required>
                     </div>
 
                     <div class="form-field private-description-field">
@@ -90,10 +81,29 @@
                 <p id="upload-message" class="form-message" role="status" aria-live="polite" hidden></p>
             </form>
         </section>
-
-        <section class="private-library-results" aria-labelledby="private-files-heading">
+        <section id="saved-books-section" class="private-library-section" aria-labelledby="saved-books-heading">
             <div class="results-heading-row">
-                <h2 id="private-files-heading">My Books</h2>
+                <h2 id="saved-books-heading">Saved Public Books</h2>
+
+                <p id="saved-results-summary" class="muted" aria-live="polite"></p>
+            </div>
+
+            <div id="saved-books-message" class="form-message" role="status" aria-live="polite" hidden></div>
+
+            <div id="saved-books-empty" class="card empty-state" hidden>
+                <h3>No saved public books yet</h3>
+
+                <p class="muted">
+                    Browse the <a href="library.html">Public Library</a> and click "Save to My Library" to keep books here for quick access.
+                </p>
+            </div>
+
+            <div id="saved-books-list" class="private-file-list" aria-busy="false"></div>
+        </section>
+
+        <section class="private-library-results private-library-section" aria-labelledby="private-files-heading">
+            <div class="results-heading-row">
+                <h2 id="private-files-heading">My Uploaded Books</h2>
 
                 <p id="private-results-summary" class="muted" aria-live="polite"></p>
             </div>
@@ -108,7 +118,7 @@
                 <h3>No private books yet</h3>
 
                 <p class="muted">
-                    Upload a PDF or EPUB to start building your personal library.
+                    Upload a PDF to start building your personal library.
                 </p>
             </div>
 

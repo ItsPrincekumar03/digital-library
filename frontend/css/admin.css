@@ -648,3 +648,445 @@ main.admin-page .tab-content.is-active:not([hidden]) {
     width: 100%;
   }
 }
+.admin-book-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.admin-book-thumb-wrap {
+  display: inline-grid;
+  flex-shrink: 0;
+  width: 36px;
+  height: 54px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  background: #f1f4f8;
+}
+
+.admin-book-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-book-thumb-placeholder {
+  font-size: 0.7rem;
+  color: var(--admin-muted);
+}
+
+.admin-cover-preview-wrap {
+  display: grid;
+  width: 96px;
+  height: 138px;
+  margin-top: 0.45rem;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #f1f4f8;
+}
+
+.admin-cover-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-preview-actions {
+  margin-top: 1rem;
+}
+
+
+/* Module 27.5: Tablet & mobile admin dashboard safeguards */
+.admin-cover-preview-wrap {
+    width: 96px;
+    height: 144px;
+    aspect-ratio: 2 / 3;
+}
+
+@media (max-width: 1023px) {
+    .admin-tabs {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .admin-tab {
+        min-height: 44px;
+    }
+}
+
+/* =========================================================
+   MODULE 27.5: ADMIN BOOK FILTERING & SORTING CONTROLS
+   ========================================================= */
+
+.admin-book-controls {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem 1.15rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 14px;
+    background: #f8fafd;
+}
+
+.admin-controls-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+}
+
+.admin-status-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.admin-status-pill {
+    min-height: 36px;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid #d0d7e3;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #475569;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.admin-status-pill:hover {
+    border-color: var(--admin-primary);
+    color: var(--admin-heading);
+}
+
+.admin-status-pill:focus-visible {
+    outline: 3px solid rgba(49, 93, 181, 0.22);
+    outline-offset: 2px;
+}
+
+.admin-status-pill.is-active {
+    border-color: var(--admin-primary);
+    background: var(--admin-primary);
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(49, 93, 181, 0.22);
+}
+
+.admin-filter-toggle {
+    display: none;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.admin-filter-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--admin-primary);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.admin-filter-badge[hidden] {
+    display: none;
+}
+
+.admin-book-controls-body {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.admin-book-search-field {
+    margin: 0;
+}
+
+.admin-book-search-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto auto;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.admin-book-search-row input {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+}
+
+.admin-book-search-row .button {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.admin-book-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.admin-book-filters .form-field {
+    margin: 0;
+    min-width: 0;
+}
+
+.admin-book-filters select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid #c9d1de;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--admin-heading);
+    font: inherit;
+    cursor: pointer;
+}
+
+.admin-book-filters select:focus-visible,
+.admin-book-search-row input:focus-visible {
+    outline: 3px solid rgba(49, 93, 181, 0.2);
+    border-color: var(--admin-primary);
+}
+
+.admin-results-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    margin-bottom: 0.85rem;
+}
+
+.admin-results-bar p {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.admin-active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.admin-active-filters[hidden] {
+    display: none;
+}
+
+.admin-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 30px;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid #bfd1f5;
+    border-radius: 999px;
+    background: #edf3ff;
+    color: #1e428a;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.admin-filter-chip:hover {
+    background: #dde8ff;
+}
+
+.admin-book-title-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    min-width: 0;
+}
+
+.admin-book-title-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.admin-book-badge {
+    display: inline-block;
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    background: #eef2f8;
+    color: #3f4b63;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.admin-book-badge-interactive {
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 140ms ease, transform 120ms ease;
+}
+
+.admin-book-badge-interactive:hover {
+    background: #d7e5ff;
+    color: #163a7a;
+}
+
+.admin-book-badge-category {
+    background: #e9f2ff;
+    color: #1e4b8f;
+}
+
+.admin-book-badge-format {
+    background: #eceff4;
+    color: #334155;
+    text-transform: uppercase;
+}
+
+.admin-table-wrap.is-loading {
+    opacity: 0.65;
+    transition: opacity 150ms ease;
+}
+
+.admin-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.65rem;
+}
+
+.admin-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.admin-pagination[hidden] {
+    display: none;
+}
+
+/* Tablet layout (768px - 1023px): balanced filters + clean card-grid rows without horizontal overflow */
+@media (max-width: 1023px) {
+    .admin-book-search-row {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+
+    .admin-book-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-book-filters .form-field:last-child {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 900px) {
+    #tab-books .admin-table-wrap {
+        border: 0;
+        background: transparent;
+        overflow-x: visible;
+    }
+
+    #tab-books .admin-table {
+        min-width: 0;
+        display: block;
+    }
+
+    #tab-books .admin-table thead {
+        display: none;
+    }
+
+    #tab-books #books-table-body {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.9rem;
+    }
+
+    #tab-books #books-table-body tr {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.65rem;
+        padding: 1rem;
+        border: 1px solid var(--admin-border);
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: 0 4px 14px rgba(21, 35, 60, 0.05);
+    }
+
+    #tab-books #books-table-body td {
+        padding: 0;
+        border-bottom: 0;
+    }
+
+    #tab-books #books-table-body td[data-label]::before {
+        content: attr(data-label) ": ";
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--admin-muted);
+        margin-right: 0.35rem;
+    }
+
+    #tab-books .admin-action-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.5rem;
+        padding-top: 0.35rem;
+        border-top: 1px solid #edf0f4;
+    }
+
+    #tab-books .admin-action-group .button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+}
+
+/* Mobile layout (<= 767px): collapsible filter drawer toggle + ergonomic touch layout */
+@media (max-width: 767px) {
+    .admin-filter-toggle {
+        display: inline-flex;
+        min-height: 44px;
+    }
+
+    .admin-book-controls:not(.is-open) .admin-book-controls-body {
+        display: none;
+    }
+
+    .admin-status-pills {
+        width: 100%;
+    }
+
+    .admin-status-pill {
+        flex: 1 1 auto;
+        min-height: 42px;
+        text-align: center;
+    }
+
+    .admin-book-search-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-book-search-row input {
+        grid-column: 1 / -1;
+    }
+
+    .admin-book-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-book-filters .form-field:last-child {
+        grid-column: auto;
+    }
+}

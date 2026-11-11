@@ -48,9 +48,24 @@ async function extractPdfText(pdfPath) {
 
         demoteRunningHeads(pages);
 
+        const pdfMetadata = {};
+        try {
+            const metaResult = await doc.getMetadata();
+            const info = metaResult && metaResult.info ? metaResult.info : {};
+            if (typeof info.Title === 'string' && info.Title.trim()) pdfMetadata.title = info.Title.trim().slice(0, 255);
+            if (typeof info.Author === 'string' && info.Author.trim()) pdfMetadata.author = info.Author.trim().slice(0, 255);
+            if (typeof info.Subject === 'string' && info.Subject.trim()) pdfMetadata.subject = info.Subject.trim().slice(0, 500);
+        } catch {
+            // Metadata is optional; text extraction still proceeds.
+        }
+
+        const textChars = pages.reduce((sum, p) => sum + p.text.length, 0);
         return {
             pageCount: doc.numPages,
-            textChars: pages.reduce((sum, p) => sum + p.text.length, 0),
+            textChars,
+            hasText: textChars > 0,
+            isScanned: textChars === 0,
+            metadata: pdfMetadata,
             pages,
         };
     } finally {

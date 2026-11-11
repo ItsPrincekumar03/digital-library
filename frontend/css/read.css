@@ -1273,3 +1273,340 @@ body[data-read-chrome="hidden"][data-audio-mode="playback"]:not([data-read-focus
     display: none;
 }
 
+
+/* ---- Module 27.5: Dual-mode reader switch & Original PDF viewer ---- */
+.read-mode-switch {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.9rem;
+    padding: 0.3rem;
+    border: 1px solid var(--rd-border);
+    border-radius: 10px;
+    background: var(--rd-notice-bg);
+}
+
+.read-mode-btn {
+    min-height: 36px;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--rd-muted);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.read-mode-btn.is-active {
+    border-color: var(--rd-border);
+    background: var(--rd-controls);
+    color: var(--rd-control-text);
+}
+
+.read-pdf-viewer:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: var(--rd-reading-width, 120rem);
+    margin-inline: auto;
+    border: 1px solid #23272e;
+    border-radius: 12px;
+    background: #323639;
+    color: #f1f5f9;
+    overflow: hidden;
+}
+
+.read-pdf-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #1f2328;
+    background: #323639;
+    color: #f1f5f9;
+}
+
+.read-pdf-toolbar .muted,
+.read-pdf-toolbar .read-pdf-page-label,
+.read-pdf-toolbar .read-pdf-zoom-value {
+    color: #e2e8f0;
+}
+
+.read-pdf-toolbar .button-secondary {
+    background: #444950;
+    border-color: #5a6069;
+    color: #f8fafc;
+}
+
+.read-pdf-toolbar .button-secondary:hover:not(:disabled) {
+    background: #535961;
+    border-color: #707782;
+}
+
+.read-pdf-toolbar .button-secondary:disabled {
+    opacity: 0.45;
+}
+
+.read-pdf-stage-wrap {
+    position: relative;
+    width: 100%;
+    height: min(82vh, 920px);
+    min-height: 480px;
+    background: #525659;
+    overflow: hidden;
+}
+
+.read-pdf-stage {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    padding: 0.75rem 0.75rem 1.25rem;
+    background: #525659;
+    scroll-behavior: smooth;
+}
+
+.read-pdf-stage .pdfViewer .page {
+    margin: 0 auto 14px auto;
+    border: 1px solid #3c4043;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    background: #ffffff;
+}
+
+.read-notice-action {
+    margin-top: 0.65rem;
+}
+
+body[data-reader-mode="pdf"] .read-actions {
+    opacity: 0.92;
+}
+
+
+/* =========================================================
+   MODULE 27.5: RESPONSIVE READER & MOBILE PDF USABILITY
+   ========================================================= */
+
+.read-pdf-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.read-pdf-fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.read-pdf-fullscreen-btn svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+    flex: 0 0 auto;
+}
+
+.read-pdf-fullscreen-btn svg[hidden] {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .read-header {
+        padding-bottom: 0.75rem;
+    }
+
+    .read-mode-switch {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+
+    .read-mode-btn {
+        flex: 1 1 140px;
+        min-height: 44px;
+        text-align: center;
+    }
+
+    .read-pdf-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.6rem;
+    }
+
+    .read-pdf-actions .button {
+        flex: 1 1 140px;
+        min-height: 44px;
+    }
+
+    .read-pdf-stage-wrap {
+        height: min(68vh, 560px);
+        min-height: 340px;
+    }
+
+    .read-shell .read-settings-panel,
+    .read-shell .read-chapters-panel {
+        width: 100%;
+        max-width: 100vw;
+    }
+
+    .read-settings-panel .read-tab,
+    .read-settings-close,
+    .read-chapters-close,
+    .read-chapters-nav button,
+    .read-actions .read-icon-btn {
+        min-height: 44px;
+    }
+}
+
+
+/* =========================================================
+   MODULE 27.5: CLEAN ORIGINAL PDF MODE ISOLATION & CONTROLS
+   ========================================================= */
+
+body[data-reader-mode="pdf"] {
+    --rd-page-bg: var(--color-background, #f6f8fb);
+    --rd-page-text: var(--color-text, #172033);
+    background: var(--color-background, #f6f8fb);
+    color: var(--color-text, #172033);
+}
+
+body[data-reader-mode="pdf"] #site-header .site-header {
+    background: var(--color-surface, #ffffff);
+    border-bottom-color: var(--color-border, #dfe4ec);
+}
+
+body[data-reader-mode="pdf"] #site-header .brand,
+body[data-reader-mode="pdf"] #site-header .nav-links a {
+    color: var(--color-text, #172033);
+}
+
+body[data-reader-mode="pdf"] #site-header .brand-mark {
+    background: var(--color-primary, #3156a3);
+    color: #ffffff;
+}
+
+body[data-reader-mode="pdf"] .read-shell {
+    background: transparent;
+    color: var(--color-text, #172033);
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+body[data-reader-mode="pdf"] #read-content,
+body[data-reader-mode="pdf"] #read-notice,
+body[data-reader-mode="pdf"] #read-storage-notice,
+body[data-reader-mode="pdf"] #read-topbar,
+body[data-reader-mode="pdf"] .read-actions,
+body[data-reader-mode="pdf"] #read-settings-panel,
+body[data-reader-mode="pdf"] #read-chapters-panel,
+body[data-reader-mode="pdf"] #read-focus-exit,
+body[data-reader-mode="pdf"] .read-progress {
+    display: none !important;
+}
+
+.read-pdf-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.read-pdf-nav-group,
+.read-pdf-zoom-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.read-pdf-page-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+    color: var(--color-text, #172033);
+}
+
+#read-pdf-page {
+    width: 4rem;
+    min-height: 36px;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid #5a6069;
+    border-radius: 6px;
+    background: #25282c;
+    color: #f8fafc;
+    font: inherit;
+    text-align: center;
+}
+
+.read-pdf-zoom-value {
+    min-width: 3.1rem;
+    text-align: center;
+    font-size: 0.88rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767px) {
+    .read-pdf-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #read-pdf-page {
+        min-height: 44px;
+    }
+}
+
+.read-pdf-viewer:fullscreen:not([hidden]),
+.read-pdf-viewer:-webkit-full-screen:not([hidden]),
+.read-pdf-viewer.is-fullscreen:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: #323639;
+}
+
+.read-pdf-viewer.is-fallback-fullscreen:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    margin: 0;
+}
+
+.read-pdf-viewer:fullscreen .read-pdf-toolbar,
+.read-pdf-viewer:-webkit-full-screen .read-pdf-toolbar,
+.read-pdf-viewer.is-fullscreen .read-pdf-toolbar {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.85rem;
+}
+
+.read-pdf-viewer:fullscreen .read-pdf-stage-wrap,
+.read-pdf-viewer:-webkit-full-screen .read-pdf-stage-wrap,
+.read-pdf-viewer.is-fullscreen .read-pdf-stage-wrap {
+    flex: 1 1 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+}
+
+body[data-pdf-fallback-fullscreen="true"] {
+    overflow: hidden;
+}
+
+body[data-pdf-fallback-fullscreen="true"] #site-header,
+body[data-pdf-fallback-fullscreen="true"] .back-link,
+body[data-pdf-fallback-fullscreen="true"] .read-header {
+    display: none !important;
+}

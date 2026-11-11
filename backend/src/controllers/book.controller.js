@@ -1,3 +1,4 @@
+const path = require('path');
 const bookService = require('../services/book.service');
 
 async function create(req, res, next) {
@@ -20,10 +21,14 @@ async function create(req, res, next) {
 async function getAll(req, res, next) {
     try {
         if (
-            req.query.page ||
-            req.query.limit ||
-            req.query.sort ||
-            req.query.order
+            req.query.page !== undefined ||
+            req.query.limit !== undefined ||
+            req.query.sort !== undefined ||
+            req.query.order !== undefined ||
+            req.query.search !== undefined ||
+            req.query.category !== undefined ||
+            req.query.categoryId !== undefined ||
+            req.query.status !== undefined
         ) {
             const { books, meta } =
                 await bookService.getAllBooksPaginated(req.user, req.query);
@@ -42,6 +47,18 @@ async function getAll(req, res, next) {
         res.status(200).json({
             success: true,
             data: { books }
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function getManageList(req, res, next) {
+    try {
+        const { books, meta } = await bookService.getAdminBooks(req.user, req.query);
+        res.status(200).json({
+            success: true,
+            data: { books, meta }
         });
     } catch (err) {
         next(err);
@@ -217,9 +234,62 @@ async function getChapterPage(req, res, next) {
     }
 }
 
+async function getCover(req, res, next) {
+    try {
+        const cover = await bookService.getBookCover(req.params.id, req.user);
+        res.status(200);
+        res.set('Content-Type', cover.mimeType);
+        res.set('Content-Length', String(cover.sizeBytes));
+        res.set('Cache-Control', 'private, no-cache');
+        if (cover.mimeType === 'image/svg+xml') {
+            res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+        }
+        res.send(cover.buffer);
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function uploadCover(req, res, next) {
+    try {
+        const book = await bookService.uploadBookCover(
+            req.params.id,
+            req.user,
+            req.file
+        );
+        res.status(200).json({
+            success: true,
+            message: 'Cover uploaded successfully.',
+            data: { book },
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function openFile(req, res, next) {
+    try {
+        const bookFile = await bookService.getPublicFileForStreaming(
+            req.params.id,
+            req.user
+        );
+        const safeFileName = path.basename(String(bookFile.fileName || 'book.pdf')).replace(/[\r\n"]/g, '');
+        const asciiFileName = safeFileName.replace(/[^\x20-\x7E]/g, '_') || 'book.pdf';
+        res.setHeader('Content-Type', bookFile.mimeType);
+        res.setHeader(
+            'Content-Disposition',
+            `inline; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(safeFileName)}`
+        );
+        res.sendFile(bookFile.filePath);
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     create,
     getAll,
+    getManageList,
     getById,
     update,
     publish,
@@ -227,6 +297,9 @@ module.exports = {
     importPdf,
     getDocument,
     getImage,
+    getCover,
+    uploadCover,
+    openFile,
     getToc,
     getChapterPage
 };

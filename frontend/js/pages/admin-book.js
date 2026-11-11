@@ -1,6 +1,7 @@
 import { auth } from "../auth.js";
 import { api } from "../api.js";
 import { ui } from "../ui.js";
+import { loadCoverIntoElements } from "../coverLoader.js";
 
 let bookId = null;
 let book = null;
@@ -280,9 +281,29 @@ function renderBook() {
             getBookPublicationDate(book)
         );
 
+    const canonicalCover = bookId ? "/api/books/" + encodeURIComponent(String(bookId)) + "/cover" : "";
+    const resolvedCoverPath = getBookCoverPath(book) || canonicalCover;
+
     element("book-cover-path")
         .textContent =
-        getBookCoverPath(book) || "—";
+        resolvedCoverPath || "—";
+
+    loadCoverIntoElements(
+        element("book-cover-preview"),
+        element("book-cover-placeholder"),
+        {
+            coverPath: book._previewCoverUrl || resolvedCoverPath,
+            fallbackApiPath: bookId ? "/books/" + encodeURIComponent(String(bookId)) + "/cover" : "",
+            altText: "Cover for " + title,
+        }
+    );
+
+    const previewReaderLink = element("admin-preview-reader");
+    if (previewReaderLink && bookId) {
+        previewReaderLink.href = "read.html?id=" + encodeURIComponent(String(bookId));
+    }
+
+    syncAdminPersonalLibraryButtons(status === "PUBLISHED");
 
     renderBookPdf();
 
@@ -298,36 +319,23 @@ const FORMAT_CONFIG = {
     PDF: {
         label: "PDF",
         extension: ".pdf",
-        accept: "application/pdf,.pdf",
+        accept: ".pdf,application/pdf",
         mimeTypes: ["application/pdf", "application/x-pdf"],
         maxSizeBytes: 10 * 1024 * 1024,
-        infoText: "PDF: Standard Portable Document Format (.pdf). Max file size: 10 MB.",
+        infoText: "Supported upload format: PDF only (.pdf). Max file size: 10 MB. Supports both Original PDF reading and PDF-derived EPUB-style reflowable reading.",
         inputLabel: "PDF file",
         submitText: "Import PDF",
-    },
-    EPUB: {
-        label: "EPUB",
-        extension: ".epub",
-        accept: "application/epub+zip,.epub",
-        mimeTypes: ["application/epub+zip"],
-        maxSizeBytes: 10 * 1024 * 1024,
-        infoText: "EPUB: Electronic publication format (.epub). Max file size: 10 MB.",
-        inputLabel: "EPUB file",
-        submitText: "Import EPUB",
     }
 };
 
-let currentAdminFormat = "PDF";
+const currentAdminFormat = "PDF";
 
-function validateUploadFile(file, format) {
+async function validateUploadFile(file) {
     if (!file) {
-        return { valid: false, message: "Please select a file to import." };
+        return { valid: false, message: "Please select a PDF file to import." };
     }
 
-    const config = FORMAT_CONFIG[format];
-    if (!config) {
-        return { valid: false, message: "Invalid format selected." };
-    }
+    const config = FORMAT_CONFIG.PDF;
 
     if (file.size === 0) {
         return { valid: false, message: "The selected file is empty." };
@@ -345,71 +353,34 @@ function validateUploadFile(file, format) {
     if (!fileName.endsWith(config.extension)) {
         return {
             valid: false,
-            message: `The selected file does not match the chosen format. Please select a valid ${config.label} file (${config.extension}).`
+            message: "Only PDF files (.pdf) are allowed."
         };
     }
 
-    if (file.type && config.mimeTypes.length > 0) {
+    if (file.type) {
         const mime = file.type.toLowerCase();
         if (!config.mimeTypes.includes(mime) && mime !== "application/octet-stream" && mime !== "") {
             return {
                 valid: false,
-                message: `The file MIME type ("${file.type}") does not match the chosen format ${config.label}.`
+                message: `Unsupported file type ("${file.type}"). Only PDF files (.pdf) are allowed.`
             };
         }
     }
 
-    return { valid: true };
-}
-
-function setAdminFormat(newFormat) {
-    if (!FORMAT_CONFIG[newFormat]) {
-        return;
-    }
-    currentAdminFormat = newFormat;
-    const config = FORMAT_CONFIG[newFormat];
-
-    const pdfBtn = element("admin-format-pdf");
-    const epubBtn = element("admin-format-epub");
-    const infoNode = element("admin-format-info");
-    const labelNode = element("admin-file-label");
-    const fileInput = element("book-pdf-file");
-    const submitBtn = element("book-pdf-submit");
-    const messageNode = element("book-pdf-message");
-
-    if (pdfBtn && epubBtn) {
-        const isPdf = newFormat === "PDF";
-        pdfBtn.classList.toggle("is-active", isPdf);
-        pdfBtn.setAttribute("aria-checked", isPdf ? "true" : "false");
-        epubBtn.classList.toggle("is-active", !isPdf);
-        epubBtn.setAttribute("aria-checked", !isPdf ? "true" : "false");
-    }
-
-    if (infoNode) {
-        infoNode.innerHTML = `<strong>${config.label}:</strong> ${config.infoText.replace(config.label + ": ", "")}`;
-    }
-
-    if (labelNode) {
-        labelNode.innerHTML = `${config.inputLabel} <span aria-hidden="true">*</span>`;
-    }
-
-    if (submitBtn) {
-        submitBtn.textContent = config.submitText;
-    }
-
-    if (fileInput) {
-        fileInput.accept = config.accept;
-
-        if (fileInput.files && fileInput.files[0]) {
-            const fileName = (fileInput.files[0].name || "").toLowerCase();
-            if (!fileName.endsWith(config.extension)) {
-                fileInput.value = "";
-                if (messageNode) {
-                    showPdfMessage(`Previous file cleared because it was not a valid ${config.label} file.`, "info");
-                }
-            }
+    try {
+        const headerBytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+        const sig = String.fromCharCode(...headerBytes);
+        if (sig !== "%PDF-") {
+            return {
+                valid: false,
+                message: "The selected file is not a valid PDF document."
+            };
         }
+    } catch (_) {
+        // Backend still performs full signature validation.
     }
+
+    return { valid: true };
 }
 
 function renderBookPdf() {
@@ -444,7 +415,7 @@ async function importBookPdf(event) {
     const button = element("book-pdf-submit");
     const file = input && input.files ? input.files[0] : null;
 
-    const validation = validateUploadFile(file, currentAdminFormat);
+    const validation = await validateUploadFile(file);
     if (!validation.valid) {
         showPdfMessage(validation.message, "error");
         return;
@@ -461,8 +432,10 @@ async function importBookPdf(event) {
         const response = await api.post("/books/" + encodeURIComponent(String(bookId)) + "/pdf", formData);
         const updated = unwrapResource(response, "book");
         if (updated && typeof updated === "object") {
-            book = Object.assign({}, book, updated);
-            renderBookPdf();
+            book = Object.assign({}, book, updated, {
+                _previewCoverUrl: "/api/books/" + encodeURIComponent(String(bookId)) + "/cover?v=" + Date.now()
+            });
+            renderBook();
         } else {
             await loadBook();
         }
@@ -476,39 +449,15 @@ async function importBookPdf(event) {
 }
 
 function bindPdfImport() {
-    setAdminFormat("PDF");
     const form = element("book-pdf-form");
     const input = element("book-pdf-file");
-    const pdfBtn = element("admin-format-pdf");
-    const epubBtn = element("admin-format-epub");
-
-    if (pdfBtn) {
-        pdfBtn.addEventListener("click", () => setAdminFormat("PDF"));
-        pdfBtn.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-                e.preventDefault();
-                epubBtn?.focus();
-                setAdminFormat("EPUB");
-            }
-        });
-    }
-
-    if (epubBtn) {
-        epubBtn.addEventListener("click", () => setAdminFormat("EPUB"));
-        epubBtn.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-                e.preventDefault();
-                pdfBtn?.focus();
-                setAdminFormat("PDF");
-            }
-        });
-    }
 
     if (input) {
-        input.addEventListener("change", () => {
+        input.accept = FORMAT_CONFIG.PDF.accept;
+        input.addEventListener("change", async () => {
             const file = input.files && input.files[0];
             if (!file) return;
-            const validation = validateUploadFile(file, currentAdminFormat);
+            const validation = await validateUploadFile(file);
             if (!validation.valid) {
                 showPdfMessage(validation.message, "error");
                 input.value = "";
@@ -520,6 +469,163 @@ function bindPdfImport() {
 
     if (form) {
         form.addEventListener("submit", importBookPdf);
+    }
+}
+
+function showCoverMessage(message, type = "info") {
+    const node = element("book-cover-message");
+    if (!node) return;
+    node.textContent = message;
+    node.hidden = !message;
+    node.classList.toggle("error-message", type === "error");
+    node.classList.toggle("success-message", type === "success");
+}
+
+function validateCoverFile(file) {
+    if (!file) return { valid: false, message: "Please select a cover image file." };
+    if (file.size === 0) return { valid: false, message: "Selected image file is empty." };
+    if (file.size > 5 * 1024 * 1024) return { valid: false, message: "Cover image must be 5 MB or less." };
+    const extOk = /.(jpe?g|png|webp|gif)$/i.test(file.name || "");
+    if (!extOk) return { valid: false, message: "Only JPG, PNG, WEBP, or GIF cover images are allowed." };
+    return { valid: true };
+}
+
+async function uploadBookCover(event) {
+    event.preventDefault();
+    const form = element("book-cover-form");
+    const input = element("book-cover-file");
+    const submitBtn = element("book-cover-submit");
+    const file = input?.files && input.files[0];
+
+    const check = validateCoverFile(file);
+    if (!check.valid) {
+        showCoverMessage(check.message, "error");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("cover", file);
+
+    submitBtn.disabled = true;
+    showCoverMessage("Uploading cover…", "info");
+    try {
+        const response = await api.post(`/books/${encodeURIComponent(String(bookId))}/cover`, formData);
+        if (response?.data?.book) {
+            book = {
+                ...response.data.book,
+                _previewCoverUrl: "/api/books/" + encodeURIComponent(String(bookId)) + "/cover?v=" + Date.now(),
+            };
+        }
+        form?.reset();
+        renderBook();
+        showCoverMessage("Cover uploaded successfully.", "success");
+        showToast("Cover uploaded successfully.", "success");
+    } catch (error) {
+        const msg = friendlyError(error);
+        showCoverMessage(msg, "error");
+        showToast(msg, "error");
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
+
+let adminBookSaved = false;
+
+async function refreshAdminSavedState() {
+    if (!bookId) return;
+    try {
+        const res = await api.get("/private-library/saved");
+        const list = res?.data?.savedBooks;
+        adminBookSaved = Array.isArray(list) && list.some((b) => Number(b.book_id) === Number(bookId));
+    } catch (_) {
+        adminBookSaved = false;
+    }
+}
+
+function syncAdminPersonalLibraryButtons(isPublished) {
+    const saveBtn = element("admin-save-to-library");
+    const removeBtn = element("admin-remove-from-library");
+    if (!saveBtn || !removeBtn) return;
+
+    if (!isPublished) {
+        saveBtn.hidden = true;
+        removeBtn.hidden = true;
+        return;
+    }
+
+    saveBtn.hidden = false;
+    if (adminBookSaved) {
+        saveBtn.textContent = "Saved to My Library";
+        saveBtn.className = "button button-saved button-small";
+        saveBtn.disabled = true;
+        removeBtn.hidden = false;
+        removeBtn.disabled = false;
+    } else {
+        saveBtn.textContent = "Save to My Library";
+        saveBtn.className = "button button-secondary button-small";
+        saveBtn.disabled = false;
+        removeBtn.hidden = true;
+        removeBtn.disabled = false;
+    }
+}
+
+function bindAdminPersonalLibrary() {
+    const saveBtn = element("admin-save-to-library");
+    const removeBtn = element("admin-remove-from-library");
+    if (!saveBtn || !removeBtn) return;
+
+    saveBtn.addEventListener("click", async () => {
+        if (adminBookSaved || saveBtn.disabled || !bookId) return;
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving…";
+        try {
+            await api.post("/private-library/saved/" + encodeURIComponent(String(bookId)), {});
+            adminBookSaved = true;
+            showToast("Saved to your personal library.", "success");
+        } catch (err) {
+            showToast(friendlyError(err), "error");
+        } finally {
+            syncAdminPersonalLibraryButtons(getStatus(book?.status) === "PUBLISHED");
+        }
+    });
+
+    removeBtn.addEventListener("click", async () => {
+        if (!adminBookSaved || removeBtn.disabled || !bookId) return;
+        const ok = window.confirm("Remove this book from your personal library? The original public book remains published.");
+        if (!ok) return;
+        removeBtn.disabled = true;
+        removeBtn.textContent = "Removing…";
+        try {
+            await api.delete("/private-library/saved/" + encodeURIComponent(String(bookId)));
+            adminBookSaved = false;
+            showToast("Removed from your personal library.", "info");
+        } catch (err) {
+            showToast(friendlyError(err), "error");
+        } finally {
+            removeBtn.textContent = "Remove from My Library";
+            syncAdminPersonalLibraryButtons(getStatus(book?.status) === "PUBLISHED");
+        }
+    });
+}
+
+function bindCoverUpload() {
+    const form = element("book-cover-form");
+    const input = element("book-cover-file");
+    if (input) {
+        input.addEventListener("change", () => {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const check = validateCoverFile(file);
+            if (!check.valid) {
+                showCoverMessage(check.message, "error");
+                input.value = "";
+            } else {
+                showCoverMessage("");
+            }
+        });
+    }
+    if (form) {
+        form.addEventListener("submit", uploadBookCover);
     }
 }
 
@@ -1720,9 +1826,12 @@ export async function init() {
 
     bindTabs();
     bindPdfImport();
+    bindCoverUpload();
+    bindAdminPersonalLibrary();
     bindDialogs();
 
     try {
+        await refreshAdminSavedState();
         await Promise.all([
             loadBook(),
             loadBookAuthors(),

@@ -312,10 +312,31 @@ async function run() {
     mimetype: 'application/epub+zip'
   };
 
-  // Run importBookPdf with EPUB format
-  const importResult = await bookService.importBookPdf(bookId, adminUser, mockFile, 'EPUB');
-  assert('importBookPdf(EPUB): succeeded', !!importResult && !!importResult.book);
-  assert('importBookPdf(EPUB): file_format updated to EPUB', importResult.book.file_format === 'EPUB', importResult.book.file_format);
+  // Verify importBookPdf rejects new EPUB uploads (PDF-only upload policy),
+  // while existing EPUB books in DB remain fully processed & readable.
+  let epubUploadBlocked = false;
+  const blockedCopyPath = path.resolve(getPublicUploadDirectory(), `blocked-${testStoredName}`);
+  await fs.promises.copyFile(epub3Path, blockedCopyPath);
+  try {
+    await bookService.importBookPdf(bookId, adminUser, { ...mockFile, path: blockedCopyPath, filename: `blocked-${testStoredName}` }, 'EPUB');
+  } catch (err) {
+    epubUploadBlocked = err && err.status === 400;
+  }
+  assert('importBookPdf(EPUB): rejects new EPUB upload (400 PDF-only)', epubUploadBlocked);
+
+  // Seed legacy existing EPUB book record to verify backward compatibility
+  const legacyDoc = await processEpubFile(publicUploadPath, { bookId });
+  const legacyProcessedName = testStoredName.replace('.epub', '.processed.json');
+  await fs.promises.writeFile(resolvePublicProcessedPath(legacyProcessedName), JSON.stringify(legacyDoc), 'utf8');
+  await bookRepository.updatePdfMetadata(bookId, {
+    originalName: 'valid-epub3.epub',
+    storedName: testStoredName,
+    size: mockFile.size,
+    fileFormat: 'EPUB',
+  });
+  await bookRepository.updateProcessedPath(bookId, legacyProcessedName);
+  const seededBook = await bookRepository.findById(bookId);
+  assert('Existing EPUB book record preserved in DB', seededBook && seededBook.file_format === 'EPUB', seededBook?.file_format);
 
   // Verify processed JSON file exists on disk
   const expectedProcessedName = testStoredName.replace('.epub', '.processed.json');

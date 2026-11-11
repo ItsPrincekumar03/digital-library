@@ -94,15 +94,21 @@ function imageFileName(entry) {
     return IMAGE_NAME_PATTERN.test(base) ? base : null;
 }
 
-function imageUrl(bookId, fileName) {
+function buildAuthHeaders() {
+    const token = api.getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function imageUrl(bookId, fileName, isPrivate = false) {
+    const base = isPrivate ? "private-library" : "books";
     return (
-        `${API_BASE_URL}/books/${encodeURIComponent(String(bookId))}` +
+        `${API_BASE_URL}/${base}/${encodeURIComponent(String(bookId))}` +
         `/images/${encodeURIComponent(fileName)}`
     );
 }
 
 async function fetchImageBlob(url, signal) {
-    const response = await fetch(url, { credentials: "include", signal });
+    const response = await fetch(url, { credentials: "include", headers: buildAuthHeaders(), signal });
 
     if (!response.ok) {
         throw new Error(`Image request failed (${response.status}).`);
@@ -118,7 +124,7 @@ async function fetchImageBlob(url, signal) {
     return response.blob();
 }
 
-function buildFigure(entry, pageNumber, bookId, fileName, observe) {
+function buildFigure(entry, pageNumber, bookId, fileName, observe, isPrivate = false) {
     const figure = document.createElement("figure");
     figure.className = "read-figure";
 
@@ -167,7 +173,7 @@ function buildFigure(entry, pageNumber, bookId, fileName, observe) {
 
         try {
             const blob = await fetchImageBlob(
-                imageUrl(bookId, fileName),
+                imageUrl(bookId, fileName, isPrivate),
                 controller.signal
             );
 
@@ -283,7 +289,7 @@ function appendBlock(section, block) {
     return paragraph;
 }
 
-function renderPage(section, page, imagesForPage, bookId, observe) {
+function renderPage(section, page, imagesForPage, bookId, observe, isPrivate = false) {
     const pageNumber = Number(page.pageNumber);
 
     const head = document.createElement("div");
@@ -338,7 +344,8 @@ function renderPage(section, page, imagesForPage, bookId, observe) {
                 Number.isSafeInteger(pageNumber) ? pageNumber : "?",
                 bookId,
                 item.fileName,
-                observe
+                observe,
+                isPrivate
             )
         );
     }
@@ -379,7 +386,7 @@ function groupImagesByPage(images) {
     return grouped;
 }
 
-function renderDocument(bookId, processedDocument) {
+function renderDocument(bookId, processedDocument, { isPrivate = false, hasOriginalPdf = false, onSwitchToPdf = null } = {}) {
     const content = element("read-content");
     content.replaceChildren();
 
@@ -400,10 +407,24 @@ function renderDocument(bookId, processedDocument) {
 
     const notice = element("read-notice");
 
+    notice.replaceChildren();
     if (!hasText) {
-        notice.textContent =
-            "Readable text is unavailable for this document. " +
-            "The pages below show any available scanned images.";
+        const msg = document.createElement("p");
+        msg.textContent = hasOriginalPdf
+            ? "Reflowable (EPUB-style) text is unavailable because this PDF appears to contain scanned or image-only pages without a selectable text layer (OCR is not available)."
+            : "Readable text is unavailable for this document. The pages below show any available scanned images.";
+        notice.append(msg);
+        if (hasOriginalPdf && typeof onSwitchToPdf === "function") {
+            const switchRow = document.createElement("div");
+            switchRow.className = "read-notice-action";
+            const switchBtn = document.createElement("button");
+            switchBtn.type = "button";
+            switchBtn.className = "button button-primary button-small";
+            switchBtn.textContent = "Open Original PDF mode";
+            switchBtn.addEventListener("click", onSwitchToPdf);
+            switchRow.append(switchBtn);
+            notice.append(switchRow);
+        }
         notice.hidden = false;
     } else {
         notice.hidden = true;
@@ -479,7 +500,8 @@ function renderDocument(bookId, processedDocument) {
                 page,
                 imagesByPage.get(pageNumber) || [],
                 bookId,
-                observe
+                observe,
+                isPrivate
             );
             fragment.append(section);
         }
@@ -495,10 +517,73 @@ function renderDocument(bookId, processedDocument) {
     render(0);
 }
 
+async function fetchOriginalPdfBytes(id, isPrivate) {
+    const base = isPrivate ? "private-library" : "books";
+    const url = `${API_BASE_URL}/${base}/${encodeURIComponent(String(id))}/file`;
+    const response = await fetch(url, { credentials: "include", headers: buildAuthHeaders() });
+    if (!response.ok) {
+        throw new Error(`Could not load original PDF (${response.status}).`);
+    }
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    if (!contentType.includes("application/pdf")) {
+        throw new Error("The requested file is not a valid PDF document.");
+    }
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer);
+}
+
+let pdfjsBundlePromise = null;
+async function loadPdfjsBundle() {
+    if (!pdfjsBundlePromise) {
+        pdfjsBundlePromise = (async () => {
+            const pdfjsLib = await import("../../vendor/pdfjs/build/pdf.min.mjs");
+            pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+                "../../vendor/pdfjs/build/pdf.worker.min.mjs",
+                import.meta.url
+            ).href;
+            globalThis.pdfjsLib = pdfjsLib;
+            const pdfjsViewer = await import("../../vendor/pdfjs/web/pdf_viewer.mjs");
+            return { pdfjsLib, pdfjsViewer };
+        })();
+    }
+    return pdfjsBundlePromise;
+}
+
+function setEpubChromeHidden(isHidden) {
+    const epubIds = [
+        "read-content",
+        "read-notice",
+        "read-storage-notice",
+        "read-topbar",
+        "read-settings-panel",
+        "read-chapters-panel",
+        "read-focus-exit",
+    ];
+    for (const elId of epubIds) {
+        const node = element(elId);
+        if (node && isHidden) {
+            node.hidden = true;
+        }
+    }
+    const actionsBar = document.querySelector(".read-actions");
+    if (actionsBar) {
+        actionsBar.hidden = isHidden;
+    }
+    const progressWrap = document.querySelector(".read-progress");
+    if (progressWrap) {
+        progressWrap.hidden = isHidden;
+    }
+}
+
 async function initReader() {
     const params = new URLSearchParams(window.location.search);
-    const rawId = params.get("id");
+    const rawPrivateId = params.get("privateId");
+    const rawPublicId = params.get("id");
+    const isPrivate = Boolean(rawPrivateId);
+    const rawId = isPrivate ? rawPrivateId : rawPublicId;
     const id = Number(rawId);
+    const modeParam = params.get("mode");
+    const requestedMode = modeParam === "reflow" ? "reflow" : modeParam === "pdf" ? "pdf" : "auto";
 
     if (!rawId || !Number.isSafeInteger(id) || id < 1) {
         showError("A valid book ID was not provided.");
@@ -510,69 +595,287 @@ async function initReader() {
         return;
     }
 
-    element("read-back").href = `book.html?id=${encodeURIComponent(String(id))}`;
+    element("read-back").href = isPrivate
+        ? "private-library.html"
+        : `book.html?id=${encodeURIComponent(String(id))}`;
 
     let bookTitle = "Untitled book";
+    let bookMeta = null;
+    const apiPrefix = isPrivate ? "private-library" : "books";
 
     try {
-        const bookResponse = await api.get(`/books/${encodeURIComponent(String(id))}`);
-        const book = bookResponse?.data?.book;
-
-        if (
-            book &&
-            typeof book.title === "string" &&
-            book.title.trim()
-        ) {
-            bookTitle = book.title;
+        const metaResponse = await api.get(`/${apiPrefix}/${encodeURIComponent(String(id))}`);
+        bookMeta = isPrivate ? metaResponse?.data?.privateFile : metaResponse?.data?.book;
+        if (bookMeta && typeof bookMeta.title === "string" && bookMeta.title.trim()) {
+            bookTitle = bookMeta.title;
         }
-    } catch {
-        // A missing title must not block reading: the document itself is
-        // authoritative for content. Errors surface via the document fetch.
+    } catch (metaError) {
+        if (metaError instanceof ApiError && (metaError.status === 401 || metaError.status === 403 || metaError.status === 404)) {
+            showError(friendlyError(metaError));
+            return;
+        }
     }
 
+    let processedDocument = null;
+    let documentError = null;
     try {
         const documentResponse = await api.get(
-            `/books/${encodeURIComponent(String(id))}/document`
+            `/${apiPrefix}/${encodeURIComponent(String(id))}/document`
         );
-        const processedDocument = documentResponse?.data?.document;
+        processedDocument = documentResponse?.data?.document || null;
+    } catch (docErr) {
+        documentError = docErr;
+    }
 
-        if (!processedDocument || typeof processedDocument !== "object") {
-            throw new Error("The reading content did not load correctly.");
+    const rawFileName = String(bookMeta?.pdf_original_name || bookMeta?.original_file_name || "").toLowerCase();
+    const fileFormat = String(
+        processedDocument?.fileFormat ||
+        bookMeta?.file_format ||
+        (rawFileName.endsWith(".epub") ? "EPUB" : (rawFileName.endsWith(".pdf") ? "PDF" : ""))
+    ).toUpperCase();
+
+    const hasOriginalPdf =
+        fileFormat === "PDF" &&
+        Boolean(processedDocument?.hasOriginalFile || bookMeta?.pdf_original_name || bookMeta?.original_file_name || bookMeta?.has_original_file || isPrivate);
+
+    const hasReadablePages = Boolean(
+        processedDocument &&
+        Array.isArray(processedDocument.pages) &&
+        processedDocument.pages.length > 0 &&
+        (
+            fileFormat === "EPUB" ||
+            processedDocument.source === "chapters" ||
+            processedDocument.hasText === true ||
+            (Number(processedDocument.textChars) || 0) > 0
+        )
+    );
+
+    if (!hasOriginalPdf && !processedDocument) {
+        if (documentError instanceof ApiError) {
+            showError(friendlyError(documentError));
+        } else {
+            showError("The reading content did not load correctly. Please try again.");
         }
+        return;
+    }
 
-        window.document.title = `${bookTitle} | Digital Library`;
-        element("read-title").textContent = bookTitle;
+    window.document.title = `${bookTitle} | Digital Library`;
+    element("read-title").textContent = bookTitle;
+    element("read-loading").hidden = true;
+    element("read-article").hidden = false;
 
-        element("read-loading").hidden = true;
-        element("read-article").hidden = false;
+    let pdfDocument = null;
+    let pdfLoadingTask = null;
+    let pdfViewerInstance = null;
+    let pdfLinkService = null;
+    let pdfLoaded = false;
+    let activeMode = "reflow";
+    let reflowInitialized = false;
+    let savedThemeAttr = null;
+    let currentPdfPage = 1;
+    let currentPdfZoom = 100;
+    let totalPdfPages = Number(processedDocument?.pageCount) > 0 ? Number(processedDocument.pageCount) : null;
 
-        renderDocument(id, processedDocument);
+    const modeSwitch = element("read-mode-switch");
+    const btnReflow = element("read-mode-reflow");
+    const btnPdf = element("read-mode-pdf");
+    const contentEl = element("read-content");
+    const pdfViewerEl = element("read-pdf-viewer");
+    const pdfStageEl = element("read-pdf-stage");
+    const pdfPagesEl = element("read-pdf-pages");
+    const pdfFullscreenBtn = element("read-pdf-fullscreen");
+    const pdfFullscreenLabel = pdfFullscreenBtn?.querySelector(".read-pdf-fullscreen-label") || null;
+    const pdfEnterIcon = pdfFullscreenBtn?.querySelector(".icon-enter-fullscreen") || null;
+    const pdfExitIcon = pdfFullscreenBtn?.querySelector(".icon-exit-fullscreen") || null;
+    const pdfErrorEl = element("read-pdf-error");
+    const pdfStatusEl = element("read-pdf-status");
+    const pdfPrevBtn = element("read-pdf-prev");
+    const pdfNextBtn = element("read-pdf-next");
+    const pdfPageInput = element("read-pdf-page");
+    const pdfPageTotal = element("read-pdf-page-total");
+    const pdfZoomOutBtn = element("read-pdf-zoom-out");
+    const pdfZoomInBtn = element("read-pdf-zoom-in");
+    const pdfZoomResetBtn = element("read-pdf-zoom-reset");
+    const pdfZoomValue = element("read-pdf-zoom-value");
+    let isFallbackFullscreen = false;
 
-        // Module 13.6 — reader settings. Isolated so a settings failure can
-        // never hide the document that is already rendered.
+    const syncPdfPageTotalUi = () => {
+        if (pdfPageTotal && totalPdfPages) {
+            pdfPageTotal.textContent = `/ ${totalPdfPages}`;
+        }
+        if (pdfPageInput && totalPdfPages) {
+            pdfPageInput.max = String(totalPdfPages);
+        }
+    };
+    syncPdfPageTotalUi();
+
+    const syncPdfControls = () => {
+        if (pdfPageInput) {
+            pdfPageInput.value = String(currentPdfPage);
+        }
+        if (pdfPrevBtn) {
+            pdfPrevBtn.disabled = currentPdfPage <= 1;
+        }
+        if (pdfNextBtn) {
+            pdfNextBtn.disabled = Boolean(totalPdfPages && currentPdfPage >= totalPdfPages);
+        }
+        if (pdfZoomValue) {
+            pdfZoomValue.textContent = `${currentPdfZoom}%`;
+        }
+        if (pdfZoomOutBtn) {
+            pdfZoomOutBtn.disabled = currentPdfZoom <= 50;
+        }
+        if (pdfZoomInBtn) {
+            pdfZoomInBtn.disabled = currentPdfZoom >= 200;
+        }
+    };
+
+    const getFullscreenElement = () =>
+        window.document.fullscreenElement ||
+        window.document.webkitFullscreenElement ||
+        null;
+
+    const isPdfFullscreenActive = () =>
+        Boolean(pdfViewerEl && (getFullscreenElement() === pdfViewerEl || isFallbackFullscreen));
+
+    const refreshPdfLayoutPreservingState = (preservedPage = currentPdfPage, preservedZoom = currentPdfZoom) => {
+        if (!pdfViewerInstance) {
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            if (!pdfViewerInstance) return;
+            pdfViewerInstance.currentScale = preservedZoom / 100;
+            if (Number.isSafeInteger(preservedPage) && preservedPage >= 1 && preservedPage <= (totalPdfPages || preservedPage)) {
+                if (pdfViewerInstance.currentPageNumber !== preservedPage) {
+                    pdfViewerInstance.currentPageNumber = preservedPage;
+                }
+            }
+            pdfViewerInstance.update();
+            syncPdfControls();
+        });
+    };
+
+    const syncPdfFullscreenUi = () => {
+        const active = isPdfFullscreenActive();
+        const preservedPage = currentPdfPage;
+        const preservedZoom = currentPdfZoom;
+        if (pdfViewerEl) {
+            pdfViewerEl.classList.toggle("is-fullscreen", active);
+            pdfViewerEl.classList.toggle("is-fallback-fullscreen", isFallbackFullscreen && active);
+            pdfViewerEl.dataset.fullscreen = active ? "true" : "false";
+        }
+        if (isFallbackFullscreen && active) {
+            document.body.dataset.pdfFallbackFullscreen = "true";
+        } else {
+            delete document.body.dataset.pdfFallbackFullscreen;
+        }
+        if (pdfFullscreenBtn) {
+            const label = active ? "Exit Full Screen" : "Enter Full Screen";
+            pdfFullscreenBtn.title = label;
+            pdfFullscreenBtn.setAttribute("aria-label", label);
+            pdfFullscreenBtn.setAttribute("aria-pressed", active ? "true" : "false");
+        }
+        if (pdfFullscreenLabel) {
+            pdfFullscreenLabel.textContent = active ? "Exit Full Screen" : "Full Screen";
+        }
+        if (pdfEnterIcon) {
+            pdfEnterIcon.hidden = active;
+        }
+        if (pdfExitIcon) {
+            pdfExitIcon.hidden = !active;
+        }
+        refreshPdfLayoutPreservingState(preservedPage, preservedZoom);
+    };
+
+    const enterPdfFullscreen = async () => {
+        if (!pdfViewerEl || activeMode !== "pdf") {
+            return;
+        }
+        const preservedPage = currentPdfPage;
+        const preservedZoom = currentPdfZoom;
+        const requestFs = pdfViewerEl.requestFullscreen || pdfViewerEl.webkitRequestFullscreen;
+        if (typeof requestFs === "function") {
+            try {
+                await requestFs.call(pdfViewerEl);
+                isFallbackFullscreen = false;
+                currentPdfPage = preservedPage;
+                currentPdfZoom = preservedZoom;
+                syncPdfFullscreenUi();
+                return;
+            } catch (_) {
+                // Fall back to in-page full-viewport mode when browser Fullscreen API is blocked.
+            }
+        }
+        isFallbackFullscreen = true;
+        currentPdfPage = preservedPage;
+        currentPdfZoom = preservedZoom;
+        syncPdfFullscreenUi();
+    };
+
+    const exitPdfFullscreen = async () => {
+        const preservedPage = currentPdfPage;
+        const preservedZoom = currentPdfZoom;
+        const fsElement = getFullscreenElement();
+        if (fsElement && fsElement === pdfViewerEl) {
+            const exitFs = window.document.exitFullscreen || window.document.webkitExitFullscreen;
+            if (typeof exitFs === "function") {
+                try {
+                    await exitFs.call(window.document);
+                } catch (_) {}
+            }
+        }
+        isFallbackFullscreen = false;
+        currentPdfPage = preservedPage;
+        currentPdfZoom = preservedZoom;
+        syncPdfFullscreenUi();
+    };
+
+    const applyPdfZoomToViewer = () => {
+        if (pdfViewerInstance) {
+            const preservedPage = currentPdfPage;
+            pdfViewerInstance.currentScale = currentPdfZoom / 100;
+            if (pdfViewerInstance.currentPageNumber !== preservedPage) {
+                pdfViewerInstance.currentPageNumber = preservedPage;
+            }
+        }
+    };
+
+    const applyPdfPageToViewer = () => {
+        if (pdfViewerInstance && pdfDocument) {
+            const maxPage = pdfDocument.numPages || totalPdfPages || currentPdfPage;
+            currentPdfPage = Math.min(Math.max(1, currentPdfPage), maxPage);
+            pdfViewerInstance.currentPageNumber = currentPdfPage;
+        }
+    };
+
+    const ensureReflowInitialized = () => {
+        if (reflowInitialized || !processedDocument) return;
+        reflowInitialized = true;
+
+        renderDocument(id, processedDocument, {
+            isPrivate,
+            hasOriginalPdf,
+            onSwitchToPdf: hasOriginalPdf ? () => applyReadingMode("pdf") : null,
+        });
+
         const pageCount = Array.isArray(processedDocument.pages)
             ? processedDocument.pages.length
             : 0;
-
-        // Extract chapter data for the chapter drawer
         const chapterData = extractChapters(processedDocument);
         const chapters = chapterData.entries;
 
         try {
-            // The chapter drawer is built from rendered page sections, so it
-            // waits for the settings render gate. initSettings resolves rather
-            // than rejects on every path, so this chain always runs.
             initSettings({
-                content: element("read-content"),
+                content: contentEl,
                 expectedPages: pageCount
             })
                 .then(() => {
                     initChapters({
-                        content: element("read-content"),
+                        content: contentEl,
                         chapters,
                         pageCount
                     });
-                    initTts({ content: element("read-content") });
+                    initTts({ content: contentEl });
                 })
                 .catch((error) => {
                     console.warn("Chapter drawer unavailable:", error);
@@ -580,14 +883,221 @@ async function initReader() {
         } catch (error) {
             console.warn("Reader settings unavailable:", error);
         }
-    } catch (error) {
-        if (error instanceof ApiError) {
-            showError(friendlyError(error));
-        } else {
-            showError(
-                "The reading content did not load correctly. Please try again."
-            );
+    };
+
+    const applyReadingMode = async (nextMode) => {
+        if (nextMode === "pdf" && !hasOriginalPdf) {
+            nextMode = "reflow";
         }
+        if (nextMode === "reflow" && hasOriginalPdf && !hasReadablePages) {
+            nextMode = "pdf";
+        }
+
+        activeMode = nextMode;
+        document.body.dataset.readerMode = activeMode;
+
+        const isPdfMode = activeMode === "pdf";
+        btnReflow?.classList.toggle("is-active", !isPdfMode);
+        btnReflow?.setAttribute("aria-pressed", !isPdfMode ? "true" : "false");
+        btnPdf?.classList.toggle("is-active", isPdfMode);
+        btnPdf?.setAttribute("aria-pressed", isPdfMode ? "true" : "false");
+
+        if (isPdfMode) {
+            const actionsBar = document.querySelector(".read-actions");
+            if (actionsBar?.dataset.audioMode === "playback") {
+                element("read-audio-stop")?.click();
+            }
+            if (document.body.dataset.readTheme) {
+                savedThemeAttr = document.body.dataset.readTheme;
+                delete document.body.dataset.readTheme;
+            }
+            delete document.body.dataset.readFocus;
+            setEpubChromeHidden(true);
+            pdfViewerEl.hidden = false;
+            syncPdfControls();
+            syncPdfFullscreenUi();
+
+            if (!pdfLoaded) {
+                pdfErrorEl.hidden = true;
+                pdfStatusEl.textContent = "Loading original PDF\u2026";
+                try {
+                    const [pdfBytes, { pdfjsLib, pdfjsViewer }] = await Promise.all([
+                        fetchOriginalPdfBytes(id, isPrivate),
+                        loadPdfjsBundle(),
+                    ]);
+                    const eventBus = new pdfjsViewer.EventBus();
+                    pdfLinkService = new pdfjsViewer.PDFLinkService({ eventBus });
+                    pdfViewerInstance = new pdfjsViewer.PDFViewer({
+                        container: pdfStageEl,
+                        viewer: pdfPagesEl,
+                        eventBus,
+                        linkService: pdfLinkService,
+                    });
+                    pdfLinkService.setViewer(pdfViewerInstance);
+
+                    eventBus.on("pagesinit", () => {
+                        if (!pdfViewerInstance) return;
+                        pdfViewerInstance.currentScale = currentPdfZoom / 100;
+                        applyPdfPageToViewer();
+                        syncPdfControls();
+                    });
+
+                    eventBus.on("pagechanging", (evt) => {
+                        if (Number.isSafeInteger(evt?.pageNumber) && evt.pageNumber >= 1) {
+                            currentPdfPage = evt.pageNumber;
+                            syncPdfControls();
+                        }
+                    });
+
+                    const vendorBase = new URL("../../vendor/pdfjs/", import.meta.url).href;
+                    pdfLoadingTask = pdfjsLib.getDocument({
+                        data: pdfBytes,
+                        cMapUrl: `${vendorBase}cmaps/`,
+                        cMapPacked: true,
+                        standardFontDataUrl: `${vendorBase}standard_fonts/`,
+                        iccUrl: `${vendorBase}iccs/`,
+                        wasmUrl: `${vendorBase}wasm/`,
+                        useWorkerFetch: false,
+                        isEvalSupported: false,
+                    });
+                    pdfDocument = await pdfLoadingTask.promise;
+                    totalPdfPages = pdfDocument.numPages;
+                    syncPdfPageTotalUi();
+                    pdfViewerInstance.setDocument(pdfDocument);
+                    pdfLinkService.setDocument(pdfDocument, null);
+                    pdfLoaded = true;
+                    pdfStatusEl.textContent = "Original PDF";
+                    syncPdfControls();
+                } catch (pdfErr) {
+                    pdfStatusEl.textContent = "Original PDF unavailable";
+                    pdfErrorEl.textContent = pdfErr?.message || "Could not load original PDF.";
+                    pdfErrorEl.hidden = false;
+                }
+            }
+        } else {
+            if (isPdfFullscreenActive()) {
+                await exitPdfFullscreen();
+            }
+            pdfViewerEl.hidden = true;
+            if (savedThemeAttr && !document.body.dataset.readTheme) {
+                document.body.dataset.readTheme = savedThemeAttr;
+            }
+            setEpubChromeHidden(false);
+            contentEl.hidden = false;
+            element("read-topbar").hidden = false;
+            ensureReflowInitialized();
+        }
+
+        try {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("mode", activeMode);
+            window.history.replaceState(null, "", nextUrl.href);
+        } catch (_) {}
+    };
+
+    pdfPrevBtn?.addEventListener("click", () => {
+        if (currentPdfPage > 1) {
+            currentPdfPage -= 1;
+            applyPdfPageToViewer();
+            syncPdfControls();
+        }
+    });
+
+    pdfNextBtn?.addEventListener("click", () => {
+        if (!totalPdfPages || currentPdfPage < totalPdfPages) {
+            currentPdfPage += 1;
+            applyPdfPageToViewer();
+            syncPdfControls();
+        }
+    });
+
+    pdfPageInput?.addEventListener("change", () => {
+        let target = Number.parseInt(pdfPageInput.value, 10);
+        if (!Number.isFinite(target) || target < 1) target = 1;
+        if (totalPdfPages && target > totalPdfPages) target = totalPdfPages;
+        currentPdfPage = target;
+        applyPdfPageToViewer();
+        syncPdfControls();
+    });
+
+    pdfZoomOutBtn?.addEventListener("click", () => {
+        currentPdfZoom = Math.max(50, currentPdfZoom - 25);
+        applyPdfZoomToViewer();
+        syncPdfControls();
+    });
+
+    pdfZoomInBtn?.addEventListener("click", () => {
+        currentPdfZoom = Math.min(200, currentPdfZoom + 25);
+        applyPdfZoomToViewer();
+        syncPdfControls();
+    });
+
+    pdfZoomResetBtn?.addEventListener("click", () => {
+        currentPdfZoom = 100;
+        applyPdfZoomToViewer();
+        syncPdfControls();
+    });
+
+    window.addEventListener("resize", () => {
+        if (activeMode === "pdf" && pdfViewerInstance) {
+            pdfViewerInstance.update();
+        }
+    });
+
+    pdfFullscreenBtn?.addEventListener("click", () => {
+        if (isPdfFullscreenActive()) {
+            exitPdfFullscreen();
+        } else {
+            enterPdfFullscreen();
+        }
+    });
+
+    window.document.addEventListener("fullscreenchange", () => {
+        if (!getFullscreenElement()) {
+            isFallbackFullscreen = false;
+        }
+        syncPdfFullscreenUi();
+    });
+
+    window.document.addEventListener("webkitfullscreenchange", () => {
+        if (!getFullscreenElement()) {
+            isFallbackFullscreen = false;
+        }
+        syncPdfFullscreenUi();
+    });
+
+    window.document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && isFallbackFullscreen) {
+            exitPdfFullscreen();
+        }
+    });
+
+    if (hasOriginalPdf && hasReadablePages && modeSwitch && btnReflow && btnPdf) {
+        modeSwitch.hidden = false;
+        btnReflow.hidden = false;
+        btnPdf.hidden = false;
+        btnReflow.addEventListener("click", () => applyReadingMode("reflow"));
+        btnPdf.addEventListener("click", () => applyReadingMode("pdf"));
+    } else if (modeSwitch) {
+        modeSwitch.hidden = true;
+    }
+
+    window.addEventListener("pagehide", () => {
+        if (pdfLoadingTask) {
+            try { pdfLoadingTask.destroy(); } catch (_) {}
+            pdfLoadingTask = null;
+        }
+        if (pdfDocument) {
+            try { pdfDocument.destroy(); } catch (_) {}
+            pdfDocument = null;
+        }
+    });
+
+    const shouldOpenPdf = hasOriginalPdf && (requestedMode !== "reflow" || !hasReadablePages);
+    if (shouldOpenPdf) {
+        await applyReadingMode("pdf");
+    } else {
+        await applyReadingMode("reflow");
     }
 }
 

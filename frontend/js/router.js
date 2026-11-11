@@ -118,7 +118,7 @@ async function boot() {
         "admin-book": "./pages/admin-book.js?v=13.1.1",
         library: "./pages/library.js",
         book: "./pages/book.js",
-        read: "./pages/read.js?v=14.4.1"
+        read: "./pages/read.js?v=27.5.1"
     };
 
     if (pageModules[page]) {

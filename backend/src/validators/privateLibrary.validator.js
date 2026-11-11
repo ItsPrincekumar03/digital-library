@@ -7,6 +7,12 @@ const idParamRule = [
         .withMessage('Invalid private PDF ID')
 ];
 
+const bookIdParamRule = [
+    param('bookId')
+        .isInt({ min: 1 })
+        .withMessage('Invalid public book ID')
+];
+
 const uploadRules = [
     body('title')
         .optional({ nullable: true })
@@ -24,8 +30,8 @@ const uploadRules = [
         .optional({ nullable: true })
         .trim()
         .toUpperCase()
-        .isIn(['PDF', 'EPUB'])
-        .withMessage('Format must be "PDF" or "EPUB"')
+        .isIn(['PDF'])
+        .withMessage('Only PDF uploads are supported. Format must be "PDF".')
 ];
 
 function handleValidation(req, res, next) {
@@ -50,6 +56,7 @@ function handleValidation(req, res, next) {
 
 module.exports = {
     idParamRule,
+    bookIdParamRule,
     uploadRules,
     handleValidation
 };

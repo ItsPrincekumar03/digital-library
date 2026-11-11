@@ -136,3 +136,92 @@
         gap: 0.25rem;
     }
 }
+
+
+/* =========================================================
+   MODULE 27.5: COLLAPSIBLE MOBILE NAVIGATION & BREAKPOINTS
+   ========================================================= */
+
+.nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.nav-toggle:hover {
+    background: #eef1f6;
+}
+
+.nav-toggle:focus-visible {
+    outline: 3px solid rgba(49, 86, 163, 0.35);
+    outline-offset: 2px;
+}
+
+@media (max-width: 1023px) and (min-width: 768px) {
+    .navbar {
+        gap: 0.75rem;
+    }
+
+    .nav-links {
+        gap: 0.35rem;
+    }
+
+    .nav-links a {
+        padding: 0.42rem 0.55rem;
+        font-size: 0.94rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .navbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-block: 0.75rem;
+    }
+
+    .nav-toggle {
+        display: inline-flex;
+    }
+
+    .nav-links {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .navbar.is-menu-open .nav-links {
+        display: flex;
+    }
+
+    .nav-links a,
+    .nav-links button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .site-footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+}

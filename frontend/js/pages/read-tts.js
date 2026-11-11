@@ -3,8 +3,10 @@
 // CSS Custom Highlight API (no DOM changes); older browsers highlight the current block.
 
 const PREFS_KEY = "dl.reader.audio.v1"; // separate key: read-settings.js rewrites/clears its own
-const RATE = { min: 0.5, max: 4, def: 1 };
-const PITCH = { min: 0, max: 2, def: 1 };
+export const RATE_RANGE = Object.freeze({ min: 0.5, max: 3, step: 0.25, def: 1 });
+export const PITCH_RANGE = Object.freeze({ min: 0.5, max: 3, step: 0.25, def: 1 });
+const RATE = RATE_RANGE;
+const PITCH = PITCH_RANGE;
 const MAX_UNIT = 300;
 const EDGE = 24;
 const USER_SCROLL_HOLD_MS = 4000;
@@ -23,10 +25,22 @@ let started = false;
 
 /* ---------------- Preferences ---------------- */
 
+export function validateTtsValue(value, range) {
+    const num = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(num) || num < range.min || num > range.max) {
+        return range.def;
+    }
+    return Math.round(num * 100) / 100;
+}
+
+export function formatTtsMultiplier(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "1\u00d7";
+    return `${Number(num.toFixed(2))}\u00d7`;
+}
+
 function clampNum(value, range) {
-    return typeof value === "number" && Number.isFinite(value) && value >= range.min && value <= range.max
-        ? value
-        : range.def;
+    return validateTtsValue(value, range);
 }
 
 function loadPrefs() {
@@ -647,8 +661,13 @@ function setup(content) {
         }
 
         // Read at creation time, so changes apply from the next sentence.
-        next.rate = prefs.rate;
-        next.pitch = prefs.pitch;
+        next.rate = validateTtsValue(prefs.rate, RATE);
+        const validatedPitch = validateTtsValue(prefs.pitch, PITCH);
+        try {
+            next.pitch = validatedPitch;
+        } catch {
+            next.pitch = Math.min(2, validatedPitch);
+        }
 
         next.onstart = () => {
             lastSpeechEventTime = Date.now();

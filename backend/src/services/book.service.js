@@ -1,4 +1,5 @@
 const bookRepository = require('../repositories/book.repository');
+const bookRelationsRepository = require('../repositories/bookRelations.repository');
 const chapterRepository = require('../repositories/chapter.repository');
 const {
     deleteFileIfExists,
@@ -12,6 +13,19 @@ const {
     getPublicUploadDirectory,
 } = require('../utils/fileStorage');
 const { validatePdfFile } = require('../utils/pdfValidation');
+const {
+    COVER_EXTENSIONS,
+    detectImageFormat,
+    saveExtractedCover,
+    findExtractedCoverBuffer,
+    selectBestPdfCoverImage,
+    generateFallbackCoverSvg,
+} = require('../utils/coverFallback');
+const {
+    buildCoverFileName,
+    resolvePublicCoverPath,
+    fileExists,
+} = require('../utils/fileStorage');
 const { extractPdfText } = require('../utils/pdfTextExtractor');
 const { extractPdfImages } = require('../utils/pdfImageExtractor');
 const logger = require('../utils/logger');
@@ -74,6 +88,38 @@ function statusFilterFor(requestingUser) {
     return isAdmin(requestingUser) ? undefined : PUBLIC_BOOK_STATUS;
 }
 
+function isOsAbsolutePath(value) {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    return /^[A-Za-z]:[\\/]/.test(trimmed) ||
+        /^\\\\/.test(trimmed) ||
+        /^\/(Users|home|var|etc|tmp|mnt|root)\//.test(trimmed);
+}
+
+function normalizeInputCoverPath(coverPath) {
+    if (coverPath === undefined || coverPath === null) {
+        return null;
+    }
+    const trimmed = String(coverPath).trim();
+    if (!trimmed) {
+        return null;
+    }
+    if (isOsAbsolutePath(trimmed)) {
+        const err = new Error('Cover path must be a relative API path or valid URL, not a local filesystem path.');
+        err.status = 400;
+        throw err;
+    }
+    return trimmed;
+}
+
+function resolveCanonicalCoverPath(book) {
+    const raw = typeof book?.cover_path === 'string' ? book.cover_path.trim() : '';
+    if (raw && !raw.startsWith('/uploads/') && !isOsAbsolutePath(raw)) {
+        return raw;
+    }
+    return `/api/books/${book.book_id}/cover`;
+}
+
 // Admin-only. New public books always start as DRAFT.
 // owner_id records which admin created the book.
 async function createBook(
@@ -82,31 +128,112 @@ async function createBook(
 ) {
     assertAdmin(requestingUser);
 
+    const safeCoverPath = normalizeInputCoverPath(coverPath);
+
     const bookId = await bookRepository.create({
         ownerUserId: requestingUser.user_id,
         title,
         description,
-        coverPath,
+        coverPath: safeCoverPath,
         publicationDate
     });
+
+    if (!safeCoverPath) {
+        await bookRepository.updateFields(bookId, {
+            cover_path: `/api/books/${bookId}/cover`
+        });
+    }
 
     return bookRepository.findById(bookId);
 }
 
-async function getAllBooks(requestingUser) {
-    return bookRepository.findAll(statusFilterFor(requestingUser));
+function inferBookFileFormat(book) {
+    if (book.file_format && typeof book.file_format === 'string' && book.file_format.trim()) {
+        return book.file_format.trim().toUpperCase();
+    }
+    const name = String(book.pdf_original_name || book.pdf_stored_name || '').toLowerCase();
+    if (name.endsWith('.epub')) return 'EPUB';
+    if (name.endsWith('.pdf') || book.pdf_stored_name) return 'PDF';
+    return null;
 }
 
-async function getAllBooksPaginated(requestingUser, query) {
-    const { page, limit, offset } = parsePagination(query);
+async function enrichBooksMetadata(books) {
+    if (!Array.isArray(books) || books.length === 0) {
+        return books;
+    }
+    const withRelations = await bookRelationsRepository.attachRelationsToBooks(books);
+    return withRelations.map((book) => ({
+        ...book,
+        cover_path: resolveCanonicalCoverPath(book),
+        cover_url: `/api/books/${book.book_id}/cover`,
+        file_format: inferBookFileFormat(book),
+        has_original_file: Boolean(book.pdf_stored_name),
+    }));
+}
 
+async function getAllBooks(requestingUser) {
+
+    return enrichBooksMetadata(await bookRepository.findAll(statusFilterFor(requestingUser)));
+}
+
+function parseCategoryFilter(query) {
+    const raw = query?.category ?? query?.categoryId;
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        return null;
+    }
+    const trimmed = String(raw).trim();
+    if (!/^[1-9]\d*$/.test(trimmed)) {
+        const err = new Error('Invalid category filter.');
+        err.status = 400;
+        throw err;
+    }
+    return Number.parseInt(trimmed, 10);
+}
+
+function parseSearchFilter(query) {
+    if (typeof query?.search !== 'string') {
+        return null;
+    }
+    const trimmed = query.search.trim().slice(0, 200);
+    return trimmed || null;
+}
+
+function parseAdminStatusFilter(query) {
+    const raw = query?.status;
+    if (raw === undefined || raw === null) {
+        return undefined;
+    }
+    const normalized = String(raw).trim().toUpperCase();
+    if (!normalized || normalized === 'ALL') {
+        return undefined;
+    }
+    if (!bookRepository.WRITABLE_STATUSES.includes(normalized)) {
+        const err = new Error('Invalid status filter. Allowed: ALL, DRAFT, PUBLISHED, ARCHIVED.');
+        err.status = 400;
+        throw err;
+    }
+    return normalized;
+}
+
+async function getBooksFiltered(requestingUser, query = {}, { requireAdminAccess = false } = {}) {
+    if (requireAdminAccess) {
+        assertAdmin(requestingUser);
+    }
+
+    const { page, limit, offset } = parsePagination(query);
     const { column, direction } = parseSort(
         query,
         BOOK_SORT_COLUMNS,
         'created_at'
     );
 
-    const status = statusFilterFor(requestingUser);
+    const categoryId = parseCategoryFilter(query);
+    const search = parseSearchFilter(query);
+    const status = isAdmin(requestingUser)
+        ? parseAdminStatusFilter(query)
+        : PUBLIC_BOOK_STATUS;
+
+    const filterArgs = { status, categoryId, search };
 
     const [books, totalItems] = await Promise.all([
         bookRepository.findAllPaginated({
@@ -114,19 +241,27 @@ async function getAllBooksPaginated(requestingUser, query) {
             offset,
             sortColumn: column,
             sortDirection: direction,
-            status
+            ...filterArgs,
         }),
-        bookRepository.countAll(status)
+        bookRepository.countAll(filterArgs),
     ]);
 
     return {
-        books,
+        books: await enrichBooksMetadata(books),
         meta: buildPaginationMeta({
             page,
             limit,
-            totalItems
-        })
+            totalItems,
+        }),
     };
+}
+
+async function getAllBooksPaginated(requestingUser, query) {
+    return getBooksFiltered(requestingUser, query, { requireAdminAccess: false });
+}
+
+async function getAdminBooks(requestingUser, query) {
+    return getBooksFiltered(requestingUser, query, { requireAdminAccess: true });
 }
 
 // Hidden books (draft / archived / legacy) look like "not found" to normal users.
@@ -141,7 +276,8 @@ async function getBookById(bookId, requestingUser) {
         throw notFound('This book is not published.', 'BOOK_NOT_PUBLISHED');
     }
 
-    return book;
+    const [enriched] = await enrichBooksMetadata([book]);
+    return enriched;
 }
 
 async function updateBook(
@@ -157,10 +293,13 @@ async function updateBook(
         throw notFound();
     }
 
+    const safeCoverPath = normalizeInputCoverPath(coverPath);
+    const preservedCoverPath = safeCoverPath || resolveCanonicalCoverPath(book);
+
     const fields = {
         title,
         description: description ?? null,
-        cover_path: coverPath ?? null,
+        cover_path: preservedCoverPath,
         publication_date: publicationDate ?? null
     };
 
@@ -244,9 +383,12 @@ function isManagedImagesDirName(dirName) {
 async function importBookPdf(bookId, requestingUser, file, format) {
     assertAdmin(requestingUser);
 
-    // Module 20: validate format
+    // Module 27.5: Enforce PDF-only uploads (existing EPUB records remain readable).
     const { validateFormat, validateExtension, validateMimeType } = require('../utils/formatValidation');
-    const formatResult = validateFormat(format || 'PDF');
+    const requestedFormat = format === undefined || format === null || String(format).trim() === ''
+        ? 'PDF'
+        : format;
+    const formatResult = validateFormat(requestedFormat);
     if (!formatResult.valid) {
         if (file && file.path) {
             await deleteFileIfExists(file.path).catch(() => {});
@@ -277,22 +419,12 @@ async function importBookPdf(bookId, requestingUser, file, format) {
         throw err;
     }
 
-    // Format-specific content validation
-    if (normalizedFormat === 'PDF') {
-        try {
-            await validatePdfFile(file.path);
-        } catch (err) {
-            await deleteFileIfExists(file.path);
-            throw err;
-        }
-    } else if (normalizedFormat === 'EPUB') {
-        const { validateEpubFile } = require('../utils/epubValidation');
-        try {
-            await validateEpubFile(file.path);
-        } catch (err) {
-            await deleteFileIfExists(file.path);
-            throw err;
-        }
+    // PDF content signature validation (never trust filename or MIME type alone)
+    try {
+        await validatePdfFile(file.path);
+    } catch (err) {
+        await deleteFileIfExists(file.path);
+        throw err;
     }
 
     // Validate extension and MIME type match format
@@ -334,6 +466,7 @@ async function importBookPdf(bookId, requestingUser, file, format) {
     }
 
     let processedAvailable = false;
+    let extractedCoverName = null;
     let documentImages = [];
     let documentImageStatus = { status: 'not_attempted', extractedCount: 0, pageReferences: 0, skippedCount: 0, unsupportedCount: 0, pageErrors: 0, limitReached: false, totalBytes: 0, message: 'Image extraction was not attempted.' };
 
@@ -387,14 +520,36 @@ async function importBookPdf(bookId, requestingUser, file, format) {
             const document = {
                 version: 1,
                 bookId: Number(bookId),
+                fileFormat: 'PDF',
                 sourceFile: file.originalname,
                 pageCount: extracted.pageCount,
                 textChars: extracted.textChars,
+                hasText: extracted.hasText,
+                isScanned: extracted.isScanned,
+                metadata: extracted.metadata || {},
                 extractedAt: new Date().toISOString(),
                 pages: extracted.pages,
                 images: documentImages,
                 imageStatus: documentImageStatus,
             };
+
+            // Module 27.5: Persist best extracted image as book cover when available.
+            const bestCoverImg = selectBestPdfCoverImage(documentImages);
+            if (bestCoverImg && bestCoverImg.file) {
+                try {
+                    const firstImgPath = resolvePublicImagePath(
+                        path.dirname(bestCoverImg.file),
+                        path.basename(bestCoverImg.file)
+                    );
+                    const imgBuf = await fs.readFile(firstImgPath);
+                    const savedCover = await saveExtractedCover(file.filename, imgBuf, false);
+                    if (savedCover && savedCover.coverFileName) {
+                        extractedCoverName = savedCover.coverFileName;
+                    }
+                } catch (coverErr) {
+                    logger.error(`Cover extraction failed for book ${bookId}.`, coverErr);
+                }
+            }
             await fs.writeFile(
                 resolvePublicProcessedPath(processedName),
                 JSON.stringify(document),
@@ -439,7 +594,13 @@ async function importBookPdf(bookId, requestingUser, file, format) {
             const document = await processEpubFile(file.path, {
                 bookId: Number(bookId),
                 imagesDirName,
-                publicUploadDir: getPublicUploadDirectory()
+                publicUploadDir: getPublicUploadDirectory(),
+                onCoverExtracted: async (coverBuf) => {
+                    const savedCover = await saveExtractedCover(file.filename, coverBuf, false);
+                    if (savedCover && savedCover.coverFileName) {
+                        extractedCoverName = savedCover.coverFileName;
+                    }
+                }
             });
             documentImages = Array.isArray(document.images) ? document.images : [];
             documentImageStatus = document.imageStatus || {
@@ -535,7 +696,37 @@ async function importBookPdf(bookId, requestingUser, file, format) {
                     );
                 }
             }
+
+            for (const ext of COVER_EXTENSIONS) {
+                try {
+                    await deleteFileIfExists(
+                        resolvePublicCoverPath(buildCoverFileName(previousStoredName, ext))
+                    );
+                } catch (_) {}
+            }
         }
+    }
+
+    // Module 27.5: Record saved cover filename and canonical /api/books/:id/cover path.
+    const coverUpdates = {};
+    const hasCustomUploadedCover = Boolean(
+        book.cover_image &&
+        CUSTOM_UPLOADED_COVER_PATTERN.test(book.cover_image) &&
+        await fileExists(resolvePublicCoverPath(book.cover_image)).catch(() => false)
+    );
+    if (extractedCoverName && !hasCustomUploadedCover) {
+        coverUpdates.cover_image = extractedCoverName;
+    } else if (!hasCustomUploadedCover && book.cover_image && !extractedCoverName) {
+        // Previous extracted cover was replaced by a file without an extracted cover
+        coverUpdates.cover_image = null;
+    }
+    if (!book.cover_path || !String(book.cover_path).trim() || String(book.cover_path).trim().startsWith('/uploads/')) {
+        coverUpdates.cover_path = `/api/books/${bookId}/cover`;
+    }
+    if (Object.keys(coverUpdates).length > 0) {
+        try {
+            await bookRepository.updateFields(bookId, coverUpdates);
+        } catch (_) {}
     }
 
     if (!processedAvailable) {
@@ -583,7 +774,16 @@ async function getProcessedDocument(bookId, requestingUser) {
         }
 
         try {
-            return JSON.parse(fileContent);
+            const parsed = JSON.parse(fileContent);
+            const inferredFormat = book.file_format || (book.pdf_stored_name && book.pdf_stored_name.toLowerCase().endsWith('.epub') ? 'EPUB' : 'PDF');
+            const textChars = Number(parsed.textChars) || 0;
+            return {
+                ...parsed,
+                fileFormat: parsed.fileFormat || inferredFormat,
+                hasOriginalFile: Boolean(book.pdf_stored_name),
+                hasText: typeof parsed.hasText === 'boolean' ? parsed.hasText : textChars > 0,
+                isScanned: typeof parsed.isScanned === 'boolean' ? parsed.isScanned : (inferredFormat === 'PDF' && textChars === 0),
+            };
         } catch (parseErr) {
             logger.error(`Content processing failed for book ${bookId}: invalid JSON in ${filePath}`, parseErr);
             const corruptErr = new Error('Content-processing failed for this book.');
@@ -794,10 +994,172 @@ async function getBookChapterPage(bookId, chapterIndex, requestingUser) {
     return page;
 }
 
+async function getPublicFileForStreaming(bookId, requestingUser) {
+    const book = await getBookById(bookId, requestingUser);
+
+    if (!book.pdf_stored_name) {
+        const err = new Error('No original book file is attached to this book.');
+        err.status = 404;
+        err.code = 'CONTENT_FILE_MISSING';
+        throw err;
+    }
+
+    const filePath = resolvePublicPdfPath(book.pdf_stored_name);
+    if (!(await fileExists(filePath))) {
+        const err = new Error('The book file is missing from storage.');
+        err.status = 404;
+        err.code = 'CONTENT_FILE_MISSING';
+        throw err;
+    }
+
+    const isEpub =
+        String(book.file_format || '').toUpperCase() === 'EPUB' ||
+        String(book.pdf_stored_name || "").toLowerCase().endsWith(".epub");
+
+    return {
+        filePath,
+        fileName: book.pdf_original_name || book.pdf_stored_name || `book-${bookId}.${isEpub ? 'epub' : 'pdf'}`,
+        mimeType: isEpub ? 'application/epub+zip' : 'application/pdf',
+    };
+}
+
+const CUSTOM_UPLOADED_COVER_PATTERN = /^cover-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|jpeg|webp|gif)$/i;
+const EXTRACTED_COVER_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.cover\.(png|jpg|jpeg|webp|gif)$/i;
+const MANAGED_COVER_NAME_PATTERN = /^(cover-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.cover)\.(png|jpg|jpeg|webp|gif)$/i;
+
+async function uploadBookCover(bookId, requestingUser, file) {
+    assertAdmin(requestingUser);
+
+    if (!file || !file.path || !file.filename) {
+        const err = new Error('Cover image file is required.');
+        err.status = 400;
+        throw err;
+    }
+
+    const book = await bookRepository.findById(bookId);
+    if (!book) {
+        await deleteFileIfExists(file.path).catch(() => {});
+        throw notFound();
+    }
+
+    let finalFilename = file.filename;
+    let finalPath = file.path;
+
+    try {
+        const buf = await fs.readFile(file.path);
+        const detected = detectImageFormat(buf);
+        if (!detected) {
+            const err = new Error('Uploaded file is not a valid JPG, PNG, WEBP, or GIF image.');
+            err.status = 400;
+            throw err;
+        }
+
+        // Ensure physical file extension always matches actual image format.
+        const currentExt = path.extname(file.filename).toLowerCase();
+        if (currentExt !== detected.ext) {
+            finalFilename = path.basename(file.filename, currentExt) + detected.ext;
+            finalPath = resolvePublicCoverPath(finalFilename);
+            await fs.rename(file.path, finalPath);
+        }
+
+        const coverPath = `/api/books/${bookId}/cover`;
+        await bookRepository.updateFields(bookId, {
+            cover_image: finalFilename,
+            cover_path: coverPath,
+        });
+    } catch (err) {
+        await deleteFileIfExists(file.path).catch(() => {});
+        if (finalPath !== file.path) {
+            await deleteFileIfExists(finalPath).catch(() => {});
+        }
+        throw err;
+    }
+
+    const previousCover = book.cover_image;
+    if (previousCover && previousCover !== finalFilename && CUSTOM_UPLOADED_COVER_PATTERN.test(previousCover)) {
+        try {
+            await deleteFileIfExists(resolvePublicCoverPath(previousCover));
+        } catch (_) {}
+    }
+
+    return bookRepository.findById(bookId);
+}
+
+async function getBookCover(bookId, requestingUser) {
+    const book = await getBookById(bookId, requestingUser);
+
+    if (book.cover_image && MANAGED_COVER_NAME_PATTERN.test(book.cover_image)) {
+        try {
+            const customPath = resolvePublicCoverPath(book.cover_image);
+            if (await fileExists(customPath)) {
+                const data = await fs.readFile(customPath);
+                const detected = detectImageFormat(data);
+                if (detected) {
+                    return { buffer: data, mimeType: detected.mimeType, sizeBytes: data.length };
+                }
+            }
+        } catch (_) {}
+    }
+
+    if (book.pdf_stored_name) {
+        const extractedCover = await findExtractedCoverBuffer(book.pdf_stored_name, false);
+        if (extractedCover) {
+            return extractedCover;
+        }
+    }
+
+    if (book.processed_content_path) {
+        try {
+            const doc = await getProcessedDocument(bookId, requestingUser);
+            const images = Array.isArray(doc.images) ? doc.images : [];
+            const bestImage = selectBestPdfCoverImage(images);
+            if (bestImage && typeof bestImage.file === 'string') {
+                const firstImage = await getProcessedImage(bookId, path.basename(bestImage.file), requestingUser);
+                if (firstImage) {
+                    if (book.pdf_stored_name) {
+                        try {
+                            const saved = await saveExtractedCover(book.pdf_stored_name, firstImage.buffer, false);
+                            if (saved && saved.coverFileName && !book.cover_image) {
+                                await bookRepository.updateFields(bookId, {
+                                    cover_image: saved.coverFileName,
+                                    cover_path: resolveCanonicalCoverPath(book),
+                                });
+                            }
+                        } catch (_) {}
+                    }
+                    return firstImage;
+                }
+            }
+        } catch (_) {}
+    }
+
+    const formatLabel = inferBookFileFormat(book) || 'BOOK';
+    let fallbackSubtitle = 'Public Library';
+    const bookAuthors = Array.isArray(book.authors) ? book.authors : await bookRelationsRepository.getAuthorsForBook(book.book_id);
+    const authorNames = bookAuthors.map((a) => a.name).filter(Boolean).join(', ');
+    if (authorNames) {
+        fallbackSubtitle = authorNames;
+    } else if (book.publication_date) {
+        fallbackSubtitle = String(book.publication_date).slice(0, 10);
+    }
+    const svgBuffer = generateFallbackCoverSvg({
+        id: book.book_id,
+        title: book.title,
+        subtitle: fallbackSubtitle,
+        format: formatLabel,
+    });
+    return {
+        buffer: svgBuffer,
+        mimeType: 'image/svg+xml',
+        sizeBytes: svgBuffer.length,
+    };
+}
+
 module.exports = {
     createBook,
     getAllBooks,
     getAllBooksPaginated,
+    getAdminBooks,
     getBookById,
     updateBook,
     publishBook,
@@ -806,5 +1168,8 @@ module.exports = {
     getProcessedDocument,
     getProcessedImage,
     getBookToc,
-    getBookChapterPage
+    getBookChapterPage,
+    getPublicFileForStreaming,
+    getBookCover,
+    uploadBookCover,
 };

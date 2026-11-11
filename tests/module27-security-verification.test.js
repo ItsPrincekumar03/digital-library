@@ -36,13 +36,21 @@ const { processEpubFile } = require('../backend/src/utils/epubProcessor');
 const {
     getPrivateUploadDirectory,
     resolvePrivatePdfPath,
+    resolvePrivateProcessedPath,
+    resolvePrivateImagesDir,
+    resolvePrivateCoverPath,
+    buildPrivateProcessedName,
+    buildPrivateImagesDirName,
     resolvePublicPdfPath,
     resolvePublicProcessedPath,
     resolvePublicImagesDir,
+    resolvePublicCoverPath,
     buildPublicImagesDirName,
+    buildCoverFileName,
     deleteFileIfExists,
     deleteDirectoryIfExists,
 } = require('../backend/src/utils/fileStorage');
+const { COVER_EXTENSIONS } = require('../backend/src/utils/coverFallback');
 
 const FIXTURES_DIR = path.resolve(__dirname, 'fixtures', 'epub');
 const AUTH_COOKIE_ORIGIN = 'http://localhost:3000';
@@ -525,7 +533,7 @@ async function run() {
         const privPdfId = upPdfA.json?.data?.privateFile?.private_file_id;
         if (privPdfId) createdPrivateFileIds.push(privPdfId);
 
-        // 5.4 Valid EPUB upload by USER A
+        // 5.4 EPUB upload rejected under PDF-only upload policy; seed legacy private EPUB for IDOR checks
         const validEpubBuf = await fsp.readFile(path.join(FIXTURES_DIR, 'valid-epub3.epub'));
         const epubFd = new FormData();
         epubFd.append('title', 'User A Private EPUB');
@@ -537,8 +545,18 @@ async function run() {
             headers: { Origin: AUTH_COOKIE_ORIGIN, 'X-CSRF-Token': csrfA },
             formData: epubFd,
         });
-        assert('USER A private EPUB upload succeeds (201)', upEpubA.status === 201, upEpubA.status);
-        const privEpubId = upEpubA.json?.data?.privateFile?.private_file_id;
+        assert('USER A private EPUB upload rejected under PDF-only policy (400)', upEpubA.status === 400, upEpubA.status);
+
+        const legacyPrivStored = `legacy-priv-${Date.now()}.epub`;
+        const legacyPrivPath = resolvePrivatePdfPath(legacyPrivStored);
+        await fsp.mkdir(path.dirname(legacyPrivPath), { recursive: true });
+        await fsp.writeFile(legacyPrivPath, validEpubBuf);
+        const [insLegacyPriv] = await pool.query(
+            `INSERT INTO private_library_files (owner_id, title, original_file_name, stored_file_name, storage_path, mime_type, file_format, file_size)
+             VALUES (?, 'Legacy User A EPUB', 'user-a.epub', ?, ?, 'application/epub+zip', 'EPUB', ?)`,
+            [userAId, legacyPrivStored, 'private/' + legacyPrivStored, validEpubBuf.length]
+        );
+        const privEpubId = insLegacyPriv.insertId;
         if (privEpubId) createdPrivateFileIds.push(privEpubId);
 
         // Record stored filenames for cleanup
@@ -630,9 +648,21 @@ async function run() {
             headers: { Origin: AUTH_COOKIE_ORIGIN, 'X-CSRF-Token': csrfAdmin },
             formData: pubEpubFd,
         });
-        assert('ADMIN imports EPUB into draft public book (200)', importRes.status === 200, importRes.status);
-        const [pubRows] = await pool.query('SELECT pdf_stored_name FROM books WHERE book_id = ?', [pubBookId]);
-        if (pubRows[0]?.pdf_stored_name) publicArtifactsToClean.push(pubRows[0].pdf_stored_name);
+        assert('ADMIN public EPUB upload rejected under PDF-only policy (400)', importRes.status === 400, importRes.status);
+
+        // Seed legacy public EPUB record to verify visibility & XSS protections remain intact
+        const legacyPubStored = `legacy-pub-${Date.now()}.epub`;
+        const legacyPubPath = resolvePublicPdfPath(legacyPubStored);
+        await fsp.mkdir(path.dirname(legacyPubPath), { recursive: true });
+        await fsp.writeFile(legacyPubPath, epubImgBuf);
+        const legacyPubDoc = await processEpubFile(legacyPubPath, { bookId: pubBookId });
+        const legacyPubProcessed = `${legacyPubStored.replace('.epub', '')}.processed.json`;
+        await fsp.writeFile(resolvePublicProcessedPath(legacyPubProcessed), JSON.stringify(legacyPubDoc), 'utf8');
+        await pool.query(
+            `UPDATE books SET pdf_original_name = 'with-images.epub', pdf_stored_name = ?, pdf_size = ?, file_format = 'EPUB', processed_content_path = ? WHERE book_id = ?`,
+            [legacyPubStored, epubImgBuf.length, legacyPubProcessed, pubBookId]
+        );
+        publicArtifactsToClean.push(legacyPubStored);
 
         // USER A blocked from draft book & its TOC/chapter/image
         const userDraftDoc = await apiFetch(baseUrl, 'GET', `/api/books/${pubBookId}/document`, { jar: jarA });
@@ -746,7 +776,14 @@ async function run() {
         captureStop();
 
         for (const storedName of privateFilesToClean) {
-            try { await deleteFileIfExists(resolvePrivatePdfPath(storedName)); } catch (_) {}
+            try {
+                await deleteFileIfExists(resolvePrivatePdfPath(storedName));
+                await deleteFileIfExists(resolvePrivateProcessedPath(buildPrivateProcessedName(storedName)));
+                await deleteDirectoryIfExists(resolvePrivateImagesDir(buildPrivateImagesDirName(storedName)));
+                for (const ext of COVER_EXTENSIONS) {
+                    await deleteFileIfExists(resolvePrivateCoverPath(buildCoverFileName(storedName, ext)));
+                }
+            } catch (_) {}
         }
         for (const storedName of publicArtifactsToClean) {
             try {
@@ -754,6 +791,9 @@ async function run() {
                 const base = path.basename(storedName, path.extname(storedName));
                 await deleteFileIfExists(resolvePublicProcessedPath(`${base}.processed.json`));
                 await deleteDirectoryIfExists(resolvePublicImagesDir(buildPublicImagesDirName(storedName)));
+                for (const ext of COVER_EXTENSIONS) {
+                    await deleteFileIfExists(resolvePublicCoverPath(buildCoverFileName(storedName, ext)));
+                }
             } catch (_) {}
         }
 

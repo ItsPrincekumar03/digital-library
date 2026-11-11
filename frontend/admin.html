@@ -71,6 +71,99 @@
                     </button>
                 </div>
 
+                <section id="admin-book-controls" class="admin-book-controls is-open" aria-label="Filter and sort manageable books">
+                    <div class="admin-controls-top">
+                        <div id="admin-status-pills" class="admin-status-pills" role="group" aria-label="Quick filter by publication status">
+                            <button type="button" class="admin-status-pill is-active" data-status="" aria-pressed="true">All</button>
+                            <button type="button" class="admin-status-pill" data-status="PUBLISHED" aria-pressed="false">Published</button>
+                            <button type="button" class="admin-status-pill" data-status="DRAFT" aria-pressed="false">Draft</button>
+                            <button type="button" class="admin-status-pill" data-status="ARCHIVED" aria-pressed="false">Archived</button>
+                        </div>
+
+                        <button
+                            type="button"
+                            id="admin-filter-toggle"
+                            class="button button-secondary button-small admin-filter-toggle"
+                            aria-expanded="true"
+                            aria-controls="admin-book-controls-body"
+                        >
+                            <span>Search &amp; Filters</span>
+                            <span id="admin-filter-badge" class="admin-filter-badge" hidden>0</span>
+                        </button>
+                    </div>
+
+                    <div id="admin-book-controls-body" class="admin-book-controls-body">
+                        <form id="admin-book-search-form" class="admin-book-search">
+                            <div class="form-field admin-book-search-field">
+                                <label for="admin-book-search">
+                                    Search books
+                                </label>
+
+                                <div class="admin-book-search-row">
+                                    <input id="admin-book-search" name="search" type="search" maxlength="200"
+                                        autocomplete="off" placeholder="Search titles, authors, or descriptions">
+
+                                    <button class="button button-primary" type="submit">
+                                        Search
+                                    </button>
+
+                                    <button class="button button-secondary" id="admin-reset-filters" type="button" disabled>
+                                        Reset filters
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="admin-book-filters">
+                            <div class="form-field">
+                                <label for="admin-category-filter">
+                                    Category
+                                </label>
+
+                                <select id="admin-category-filter" name="category">
+                                    <option value="">
+                                        All categories
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="form-field">
+                                <label for="admin-sort-filter">
+                                    Sort books
+                                </label>
+
+                                <select id="admin-sort-filter" name="sort"></select>
+                            </div>
+
+                            <div class="form-field">
+                                <label for="admin-status-filter">
+                                    Status
+                                </label>
+
+                                <select id="admin-status-filter" name="status">
+                                    <option value="">
+                                        All statuses
+                                    </option>
+                                    <option value="PUBLISHED">
+                                        Published
+                                    </option>
+                                    <option value="DRAFT">
+                                        Draft
+                                    </option>
+                                    <option value="ARCHIVED">
+                                        Archived
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="admin-results-bar">
+                    <p id="admin-books-summary" class="muted" aria-live="polite"></p>
+                    <div id="admin-active-filters" class="admin-active-filters" aria-label="Active filters" hidden></div>
+                </div>
+
                 <div id="books-message" class="form-message" role="status" aria-live="polite" hidden></div>
 
                 <div class="admin-table-wrap">
@@ -90,15 +183,32 @@
                     </table>
                 </div>
 
+                <nav id="admin-books-pagination" class="pagination admin-pagination" aria-label="Admin book pages" hidden>
+                    <button id="admin-books-prev" class="button button-secondary" type="button">
+                        Previous
+                    </button>
+
+                    <span id="admin-books-page-indicator" class="page-indicator"></span>
+
+                    <button id="admin-books-next" class="button button-secondary" type="button">
+                        Next
+                    </button>
+                </nav>
+
                 <div id="books-empty" class="admin-empty" hidden>
-                    <h3>No books found</h3>
-                    <p class="muted">
+                    <h3 id="books-empty-title">No books found</h3>
+                    <p id="books-empty-message" class="muted">
                         Create a book to begin building the public library.
                     </p>
 
-                    <button id="create-book-empty-button" class="button button-primary" type="button">
-                        + Create book
-                    </button>
+                    <div class="admin-empty-actions">
+                        <button id="create-book-empty-button" class="button button-primary" type="button">
+                            + Create book
+                        </button>
+                        <button id="admin-empty-reset-button" class="button button-secondary" type="button" hidden>
+                            Reset filters
+                        </button>
+                    </div>
                 </div>
             </section>
 
@@ -242,7 +352,7 @@
                         </label>
 
                         <input id="book-cover-path" name="coverPath" type="text" maxlength="500" autocomplete="off"
-                            placeholder="/uploads/covers/book.jpg">
+                            placeholder="/api/books/1/cover">
                     </div>
 
                     <div class="admin-form-field">

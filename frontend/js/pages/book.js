@@ -1,6 +1,7 @@
 import { api } from "../api.js";
-import { API_BASE_URL } from "../config.js";
+import { loadCoverIntoElements } from "../coverLoader.js";
 import { auth } from "../auth.js";
+import { ui } from "../ui.js";
 
 function element(id) {
     return document.getElementById(id);
@@ -60,40 +61,18 @@ function friendlyError(error) {
     return "The book request could not be completed. Please try again.";
 }
 
-function setCover(coverPath, title) {
+function setCover(book, title) {
     const image = element("book-cover");
     const placeholder = element("book-cover-placeholder");
-
-    if (typeof coverPath !== "string" || !coverPath.trim()) {
-        image.hidden = true;
-        placeholder.hidden = false;
-        return;
-    }
-
-    try {
-        const origin = new URL(API_BASE_URL).origin;
-        const normalizedPath = coverPath.startsWith("/")
-            ? coverPath
-            : `/${coverPath}`;
-        const url = new URL(normalizedPath, origin);
-
-        if (url.protocol !== "http:" && url.protocol !== "https:") {
-            throw new Error("Unsupported image URL protocol.");
-        }
-
-        image.src = url.href;
-        image.alt = title ? `Cover for ${title}` : "Book cover";
-        image.hidden = false;
-        placeholder.hidden = true;
-
-        image.addEventListener("error", () => {
-            image.hidden = true;
-            placeholder.hidden = false;
-        }, { once: true });
-    } catch {
-        image.hidden = true;
-        placeholder.hidden = false;
-    }
+    const bookId = Number(book?.book_id);
+    const fallbackApiPath = Number.isSafeInteger(bookId) && bookId >= 1
+        ? `/books/${encodeURIComponent(String(bookId))}/cover`
+        : "";
+    loadCoverIntoElements(image, placeholder, {
+        coverPath: book?.cover_path || "",
+        fallbackApiPath,
+        altText: title ? `Cover for ${title}` : "Book cover",
+    });
 }
 
 function appendChips(container, items, labelProperty) {
@@ -153,7 +132,16 @@ function renderChapters(chapters) {
     list.hidden = validChapters.length === 0;
 }
 
-function renderBook(book, authors, categories, chapters) {
+function setSaveFeedback(message, type = "") {
+    const box = element("book-save-feedback");
+    if (!box) return;
+    box.textContent = message;
+    box.hidden = !message;
+    box.classList.toggle("success-message", type === "success");
+    box.classList.toggle("error-message", type === "error");
+}
+
+function renderBook(book, authors, categories, chapters, isSaved = false) {
     const title = typeof book.title === "string" && book.title.trim()
         ? book.title
         : "Untitled book";
@@ -162,8 +150,101 @@ function renderBook(book, authors, categories, chapters) {
     element("book-title").textContent = title;
 
     const readLink = element("book-read");
+    const actionsContainer = element("book-actions") || readLink?.parentElement;
     if (readLink && Number.isSafeInteger(Number(book.book_id)) && Number(book.book_id) >= 1) {
-        readLink.href = `read.html?id=${encodeURIComponent(String(book.book_id))}`;
+        const bookIdNum = Number(book.book_id);
+        const encodedBookId = encodeURIComponent(String(bookIdNum));
+        const isPdfBook = Boolean(book.pdf_original_name) && String(book.file_format || "PDF").toUpperCase() !== "EPUB";
+        const existingReflowLink = element("book-read-reflow");
+        if (isPdfBook) {
+            readLink.href = `read.html?id=${encodedBookId}&mode=pdf`;
+            readLink.textContent = "Read Original PDF";
+            const reflowLink = existingReflowLink || document.createElement("a");
+            reflowLink.id = "book-read-reflow";
+            reflowLink.className = "button button-secondary";
+            reflowLink.href = `read.html?id=${encodedBookId}&mode=reflow`;
+            reflowLink.textContent = "Read (EPUB-style)";
+            if (!existingReflowLink && actionsContainer) {
+                actionsContainer.append(reflowLink);
+            }
+        } else {
+            readLink.href = `read.html?id=${encodedBookId}`;
+            readLink.textContent = "Read this book";
+            if (existingReflowLink) existingReflowLink.remove();
+        }
+        if (actionsContainer) {
+            const existingSaveBtn = element("book-save-toggle");
+            const saveBtn = existingSaveBtn || document.createElement("button");
+            saveBtn.id = "book-save-toggle";
+            saveBtn.type = "button";
+
+            const existingRemoveBtn = element("book-remove-saved");
+            const removeBtn = existingRemoveBtn || document.createElement("button");
+            removeBtn.id = "book-remove-saved";
+            removeBtn.type = "button";
+            removeBtn.className = "button button-danger";
+            removeBtn.textContent = "Remove from My Library";
+
+            let savedState = Boolean(isSaved);
+            const syncBtns = () => {
+                if (savedState) {
+                    saveBtn.textContent = "Saved to My Library";
+                    saveBtn.className = "button button-saved";
+                    saveBtn.disabled = true;
+                    saveBtn.setAttribute("aria-pressed", "true");
+                    removeBtn.hidden = false;
+                    removeBtn.disabled = false;
+                } else {
+                    saveBtn.textContent = "Save to My Library";
+                    saveBtn.className = "button button-secondary";
+                    saveBtn.disabled = false;
+                    saveBtn.setAttribute("aria-pressed", "false");
+                    removeBtn.hidden = true;
+                    removeBtn.disabled = false;
+                }
+            };
+            syncBtns();
+            if (!existingSaveBtn) {
+                saveBtn.addEventListener("click", async () => {
+                    if (savedState || saveBtn.disabled) return;
+                    saveBtn.disabled = true;
+                    saveBtn.textContent = "Saving?";
+                    try {
+                        await api.post(`/private-library/saved/${encodedBookId}`, {});
+                        savedState = true;
+                        setSaveFeedback("Saved to your private library.", "success");
+                        ui.showToast(`Saved "${title}" to your private library.`, "success");
+                    } catch (err) {
+                        const msg = err?.message || "Could not save to your private library.";
+                        setSaveFeedback(msg, "error");
+                        ui.showToast(msg, "error");
+                    } finally {
+                        syncBtns();
+                    }
+                });
+                removeBtn.addEventListener("click", async () => {
+                    if (!savedState || removeBtn.disabled) return;
+                    const ok = window.confirm(`Remove "${title}" from your personal library? The original book in the public library will not be deleted.`);
+                    if (!ok) return;
+                    removeBtn.disabled = true;
+                    removeBtn.textContent = "Removing?";
+                    try {
+                        await api.delete(`/private-library/saved/${encodedBookId}`);
+                        savedState = false;
+                        setSaveFeedback("Removed from your private library.", "success");
+                        ui.showToast(`Removed "${title}" from your private library.`, "info");
+                    } catch (err) {
+                        const msg = err?.message || "Could not remove from your private library.";
+                        setSaveFeedback(msg, "error");
+                        ui.showToast(msg, "error");
+                    } finally {
+                        removeBtn.textContent = "Remove from My Library";
+                        syncBtns();
+                    }
+                });
+                actionsContainer.append(saveBtn, removeBtn);
+            }
+        }
     }
 
     const description = element("book-description");
@@ -185,7 +266,7 @@ function renderBook(book, authors, categories, chapters) {
         publication.hidden = true;
     }
 
-    setCover(book.cover_path, title);
+    setCover(book, title);
 
     const authorCount = appendChips(element("book-authors"), authors, "name");
     element("authors-empty").hidden = authorCount > 0;
@@ -220,13 +301,16 @@ async function initBook() {
 
     try {
         const encodedId = encodeURIComponent(String(id));
-        const [bookResponse, authorResponse, categoryResponse, chapterResponse] =
+        const [bookResponse, authorResponse, categoryResponse, chapterResponse, savedResponse] =
             await Promise.all([
                 api.get(`/books/${encodedId}`),
                 api.get(`/books/${encodedId}/authors`),
                 api.get(`/books/${encodedId}/categories`),
-                api.get(`/books/${encodedId}/chapters`)
+                api.get(`/books/${encodedId}/chapters`),
+                api.get("/private-library/saved").catch(() => null),
             ]);
+        const savedList = savedResponse?.data?.savedBooks;
+        const isSaved = Array.isArray(savedList) && savedList.some((item) => Number(item.book_id) === id);
 
         const book = bookResponse?.data?.book;
         if (!book || typeof book !== "object") {
@@ -237,7 +321,8 @@ async function initBook() {
             book,
             authorResponse?.data?.authors,
             categoryResponse?.data?.categories,
-            chapterResponse?.data?.chapters
+            chapterResponse?.data?.chapters,
+            isSaved
         );
     } catch (error) {
         element("book-loading").hidden = true;

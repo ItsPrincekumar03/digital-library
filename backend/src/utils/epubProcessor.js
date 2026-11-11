@@ -428,11 +428,17 @@ async function extractEpubComponents(epubPath) {
 
   // Metadata
   const metadata = {};
+  let metaCoverId = null;
   const metaElement = DomUtils.getElementsByTagName('metadata', opfDoc)[0];
   if (metaElement) {
     for (const child of metaElement.children) {
       if (!child.name) continue;
       const tagName = child.name.toLowerCase();
+      if (tagName === 'meta' && child.attribs) {
+        if (String(child.attribs.name || '').toLowerCase() === 'cover' && child.attribs.content) {
+          metaCoverId = String(child.attribs.content).trim();
+        }
+      }
       const text = DomUtils.textContent(child).trim();
       if (tagName.includes('title') && !metadata.title) metadata.title = text;
       else if (tagName.includes('creator') && !metadata.creator) metadata.creator = text;
@@ -508,6 +514,28 @@ async function extractEpubComponents(epubPath) {
     if (buf) tocNcx = buf.toString('utf-8');
   }
 
+  // Cover manifest item (EPUB 3 properties="cover-image" or EPUB 2 <meta name="cover">)
+  const allManifestItems = Array.from(manifestMap.values());
+  const isImageItem = (i) => i && typeof i.mediaType === 'string' && i.mediaType.toLowerCase().startsWith('image/');
+  const metaCoverCandidate = metaCoverId ? manifestMap.get(metaCoverId) : null;
+  const coverManifestItem =
+    allManifestItems.find((i) => isImageItem(i) && i.properties.split(/\s+/).includes('cover-image')) ||
+    (isImageItem(metaCoverCandidate) ? metaCoverCandidate : null) ||
+    allManifestItems.find((i) => isImageItem(i) && /^(cover|cover-image)$/i.test(i.id)) ||
+    allManifestItems.find((i) => isImageItem(i) && /(^|\/)cover\b/i.test(i.href)) ||
+    null;
+  let coverEntryPath = null;
+  if (coverManifestItem) {
+    if (fileMap.has(coverManifestItem.fullPath)) {
+      coverEntryPath = coverManifestItem.fullPath;
+    } else {
+      try {
+        const decoded = decodeURIComponent(coverManifestItem.fullPath);
+        if (fileMap.has(decoded)) coverEntryPath = decoded;
+      } catch (_) {}
+    }
+  }
+
   return {
     metadata,
     manifestMap,
@@ -515,6 +543,7 @@ async function extractEpubComponents(epubPath) {
     navXhtml,
     tocNcx,
     fileMap,
+    coverEntryPath,
     readEntryBuffer,
     totalDecompressedBytes: totalTracker.bytes
   };
@@ -528,7 +557,8 @@ async function processEpubFile(epubPath, options = {}) {
   const {
     bookId = null,
     imagesDirName = null,
-    publicUploadDir = null
+    publicUploadDir = null,
+    onCoverExtracted = null
   } = options;
 
   const {
@@ -537,8 +567,18 @@ async function processEpubFile(epubPath, options = {}) {
     spineItems,
     navXhtml,
     tocNcx,
+    coverEntryPath,
     readEntryBuffer
   } = await extractEpubComponents(epubPath);
+
+  if (coverEntryPath && typeof onCoverExtracted === 'function') {
+    try {
+      const coverBuf = await readEntryBuffer(coverEntryPath);
+      if (coverBuf) {
+        await onCoverExtracted(coverBuf);
+      }
+    } catch (_) {}
+  }
 
   // Parse Table of Contents
   let toc = [];

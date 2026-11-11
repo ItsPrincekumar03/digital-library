@@ -193,6 +193,8 @@ async function verifyPrivateLibraryTable(connection, expectedDatabase) {
         ['storage_path', { columnType: 'varchar(500)', nullable: 'NO' }],
         ['mime_type', { columnType: 'varchar(100)', nullable: 'NO' }],
         ['file_format', { columnType: 'varchar(10)', nullable: 'YES' }],
+        ['cover_image', { columnType: 'varchar(255)', nullable: 'YES' }],
+        ['cover_path', { columnType: 'varchar(255)', nullable: 'YES' }],
         ['file_size', { columnType: 'bigint unsigned', nullable: 'NO' }],
         ['created_at', { columnType: 'datetime', nullable: 'NO' }],
         ['updated_at', { columnType: 'datetime', nullable: 'NO' }],
@@ -297,6 +299,8 @@ async function applyMigrations(connection, expectedDatabase) {
                 storage_path VARCHAR(500) NOT NULL,
                 mime_type VARCHAR(100) NOT NULL,
                 file_format VARCHAR(10) NULL,
+                cover_image VARCHAR(255) NULL,
+                cover_path VARCHAR(255) NULL,
                 file_size BIGINT UNSIGNED NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -315,6 +319,17 @@ async function applyMigrations(connection, expectedDatabase) {
         connection, expectedDatabase, 'private_library_files', 'file_format',
         { columnType: 'varchar(10)', nullable: 'YES' },
         'ALTER TABLE private_library_files ADD COLUMN file_format VARCHAR(10) NULL'
+    );
+
+    await ensureColumn(
+        connection, expectedDatabase, 'private_library_files', 'cover_image',
+        { columnType: 'varchar(255)', nullable: 'YES' },
+        'ALTER TABLE private_library_files ADD COLUMN cover_image VARCHAR(255) NULL'
+    );
+    await ensureColumn(
+        connection, expectedDatabase, 'private_library_files', 'cover_path',
+        { columnType: 'varchar(255)', nullable: 'YES' },
+        'ALTER TABLE private_library_files ADD COLUMN cover_path VARCHAR(255) NULL'
     );
 
     await verifyPrivateLibraryTable(connection, expectedDatabase);
@@ -386,6 +401,31 @@ async function applyMigrations(connection, expectedDatabase) {
         console.log('[MIGRATE] Created auth_events table.');
     } else {
         console.log('[MIGRATE] auth_events table already exists.');
+    }
+
+    // 8. Saved public books table (Module 27.5: personal private library bookmarks)
+    if (!(await tableExists(connection, expectedDatabase, 'private_saved_books'))) {
+        await assertDatabase(connection, expectedDatabase);
+        console.log('[MIGRATE] Creating private_saved_books table...');
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS private_saved_books (
+                saved_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNSIGNED NOT NULL,
+                book_id BIGINT UNSIGNED NOT NULL,
+                saved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_private_saved_books_user_book (user_id, book_id),
+                INDEX idx_private_saved_books_user_saved_at (user_id, saved_at),
+                CONSTRAINT fk_private_saved_books_user
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                    ON DELETE CASCADE ON UPDATE CASCADE,
+                CONSTRAINT fk_private_saved_books_book
+                    FOREIGN KEY (book_id) REFERENCES books(book_id)
+                    ON DELETE CASCADE ON UPDATE CASCADE
+            ) ENGINE=InnoDB;
+        `);
+        console.log('[MIGRATE] Created private_saved_books table.');
+    } else {
+        console.log('[MIGRATE] private_saved_books table already exists.');
     }
 
     console.log(`[MIGRATE] Incremental migrations completed for "${expectedDatabase}".`);

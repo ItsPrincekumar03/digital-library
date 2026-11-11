@@ -35,12 +35,12 @@ async function ensurePublicUploadDirectory() {
     await fs.mkdir(publicUploadDirectory, { recursive: true });
 }
 
-function resolvePrivatePdfPath(storedFileName) {
-    const safeFileName = path.basename(String(storedFileName || ''));
-    const resolvedPath = path.resolve(privateUploadDirectory, safeFileName);
+function resolveInsideDir(baseDir, fileName, errorMessage) {
+    const safeFileName = path.basename(String(fileName || ''));
+    const resolvedPath = path.resolve(baseDir, safeFileName);
 
-    if (!resolvedPath.startsWith(privateUploadDirectory + path.sep)) {
-        const err = new Error('Invalid private file path.');
+    if (!resolvedPath.startsWith(baseDir + path.sep)) {
+        const err = new Error(errorMessage);
         err.status = 400;
         throw err;
     }
@@ -48,17 +48,12 @@ function resolvePrivatePdfPath(storedFileName) {
     return resolvedPath;
 }
 
+function resolvePrivatePdfPath(storedFileName) {
+    return resolveInsideDir(privateUploadDirectory, storedFileName, 'Invalid private file path.');
+}
+
 function resolvePublicPdfPath(storedFileName) {
-    const safeFileName = path.basename(String(storedFileName || ''));
-    const resolvedPath = path.resolve(publicUploadDirectory, safeFileName);
-
-    if (!resolvedPath.startsWith(publicUploadDirectory + path.sep)) {
-        const err = new Error('Invalid public file path.');
-        err.status = 400;
-        throw err;
-    }
-
-    return resolvedPath;
+    return resolveInsideDir(publicUploadDirectory, storedFileName, 'Invalid public file path.');
 }
 
 // Module 13.2 — processed-text files live next to the public PDFs and share
@@ -71,16 +66,34 @@ function buildPublicProcessedName(storedPdfName) {
 }
 
 function resolvePublicProcessedPath(processedFileName) {
-    const safeFileName = path.basename(String(processedFileName || ''));
-    const resolvedPath = path.resolve(publicUploadDirectory, safeFileName);
+    return resolveInsideDir(publicUploadDirectory, processedFileName, 'Invalid processed file path.');
+}
 
-    if (!resolvedPath.startsWith(publicUploadDirectory + path.sep)) {
-        const err = new Error('Invalid processed file path.');
-        err.status = 400;
-        throw err;
-    }
+// Module 27.5 — private processed-text files share the same strict guard inside uploads/private.
+function buildPrivateProcessedName(storedFileName) {
+    const ext = path.extname(String(storedFileName || ''));
+    const base = path.basename(String(storedFileName || ''), ext);
+    return `${base}.processed.json`;
+}
 
-    return resolvedPath;
+function resolvePrivateProcessedPath(processedFileName) {
+    return resolveInsideDir(privateUploadDirectory, processedFileName, 'Invalid private processed file path.');
+}
+
+// Module 27.5 — cover files live next to the stored book file ('<uuid>.cover.<ext>').
+function buildCoverFileName(storedFileName, ext = '.png') {
+    const fileExt = path.extname(String(storedFileName || ''));
+    const base = path.basename(String(storedFileName || ''), fileExt);
+    const safeExt = String(ext || '.png').startsWith('.') ? ext : `.${ext}`;
+    return `${base}.cover${safeExt}`;
+}
+
+function resolvePublicCoverPath(coverFileName) {
+    return resolveInsideDir(publicUploadDirectory, coverFileName, 'Invalid public cover path.');
+}
+
+function resolvePrivateCoverPath(coverFileName) {
+    return resolveInsideDir(privateUploadDirectory, coverFileName, 'Invalid private cover path.');
 }
 
 // Module 13.3 — extracted image files live in a per-document directory next
@@ -94,16 +107,7 @@ function buildPublicImagesDirName(storedPdfName) {
 }
 
 function resolvePublicImagesDir(dirName) {
-    const safeDirName = path.basename(String(dirName || ''));
-    const resolvedPath = path.resolve(publicUploadDirectory, safeDirName);
-
-    if (!resolvedPath.startsWith(publicUploadDirectory + path.sep)) {
-        const err = new Error('Invalid images directory path.');
-        err.status = 400;
-        throw err;
-    }
-
-    return resolvedPath;
+    return resolveInsideDir(publicUploadDirectory, dirName, 'Invalid images directory path.');
 }
 
 function resolvePublicImagePath(dirName, fileName) {
@@ -114,6 +118,29 @@ function resolvePublicImagePath(dirName, fileName) {
 
     if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
         const err = new Error('Invalid image file path.');
+        err.status = 400;
+        throw err;
+    }
+
+    return resolvedPath;
+}
+
+function buildPrivateImagesDirName(storedFileName) {
+    return buildPublicImagesDirName(storedFileName);
+}
+
+function resolvePrivateImagesDir(dirName) {
+    return resolveInsideDir(privateUploadDirectory, dirName, 'Invalid private images directory path.');
+}
+
+function resolvePrivateImagePath(dirName, fileName) {
+    const safeDirName = path.basename(String(dirName || ''));
+    const safeFileName = path.basename(String(fileName || ''));
+    const resolvedDir = path.resolve(privateUploadDirectory, safeDirName);
+    const resolvedPath = path.resolve(resolvedDir, safeFileName);
+
+    if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
+        const err = new Error('Invalid private image file path.');
         err.status = 400;
         throw err;
     }
@@ -163,9 +190,17 @@ module.exports = {
     resolvePublicPdfPath,
     buildPublicProcessedName,
     resolvePublicProcessedPath,
+    buildPrivateProcessedName,
+    resolvePrivateProcessedPath,
+    buildCoverFileName,
+    resolvePublicCoverPath,
+    resolvePrivateCoverPath,
     buildPublicImagesDirName,
     resolvePublicImagesDir,
     resolvePublicImagePath,
+    buildPrivateImagesDirName,
+    resolvePrivateImagesDir,
+    resolvePrivateImagePath,
     ensurePublicImagesDir,
     deleteDirectoryIfExists,
     fileExists,

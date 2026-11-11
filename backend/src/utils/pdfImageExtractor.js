@@ -139,7 +139,7 @@ function validPixelData(imgData) {
 // Resolves { imagesDirName, images, status }. Never throws for per-image or
 // per-page problems; only a document-level failure (unreadable/encrypted
 // PDF) rejects, and the caller keeps any successful text extraction.
-async function extractPdfImages(pdfPath, { bookId, imagesDirName }) {
+async function extractPdfImages(pdfPath, { bookId, imagesDirName, resolveImagesDir = resolvePublicImagesDir, resolveImagePath = resolvePublicImagePath }) {
     const limits = getImageLimits();
     const data = await fs.readFile(pdfPath);
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -291,14 +291,14 @@ async function extractPdfImages(pdfPath, { bookId, imagesDirName }) {
 
                     if (!dirReady) {
                         await fs.mkdir(
-                            resolvePublicImagesDir(imagesDirName),
+                            resolveImagesDir(imagesDirName),
                             { recursive: true }
                         );
                         dirReady = true;
                     }
 
                     const fileName = `p${pageNumber}-${images.length + 1}.png`;
-                    const filePath = resolvePublicImagePath(
+                    const filePath = resolveImagePath(
                         imagesDirName,
                         fileName
                     );

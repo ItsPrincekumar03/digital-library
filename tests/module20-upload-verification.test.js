@@ -53,13 +53,13 @@ async function run() {
     assert('PDF format accepted', result.valid === true, result);
 
     result = validateFormat('EPUB');
-    assert('EPUB format accepted', result.valid === true, result);
+    assert('EPUB upload format rejected (PDF-only policy)', result.valid === false, result);
 
     result = validateFormat('pdf');
     assert('Lowercase PDF accepted (case insensitive)', result.valid === true, result);
 
-    result = validateFormat('EP');
-    assert('Unsupported format rejected', result.valid === false, result);
+    result = validateFormat('DOCX');
+    assert('Unsupported DOCX format rejected', result.valid === false, result);
 
     result = validateFormat('');
     assert('Empty format rejected', result.valid === false, result);
@@ -68,7 +68,7 @@ async function run() {
     assert('PDF extension matches', result.valid === true, result);
 
     result = validateExtension('EPUB', 'test.epub');
-    assert('EPUB extension matches', result.valid === true, result);
+    assert('EPUB extension rejected under PDF-only upload rules', result.valid === false, result);
 
     result = validateExtension('PDF', 'test.epub');
     assert('EPUB extension rejected for PDF format', result.valid === false, result);
@@ -77,7 +77,7 @@ async function run() {
     assert('PDF MIME accepted', result.valid === true, result);
 
     result = validateMimeType('EPUB', 'application/epub+zip');
-    assert('EPUB MIME accepted', result.valid === true, result);
+    assert('EPUB MIME rejected under PDF-only upload rules', result.valid === false, result);
 
     result = validateMimeType('PDF', 'application/epub+zip');
     assert('EPUB MIME rejected for PDF format', result.valid === false, result);

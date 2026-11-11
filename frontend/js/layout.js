@@ -67,9 +67,16 @@ export function renderLayout() {
         brandMark.textContent = "D";
         brand.prepend(brandMark);
 
-        const links =
-            document.createElement("div");
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "nav-toggle";
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-controls", "primary-nav-links");
+        toggle.setAttribute("aria-label", "Toggle navigation menu");
+        toggle.textContent = "Menu";
 
+        const links = document.createElement("div");
+        links.id = "primary-nav-links";
         links.className = "nav-links";
 
         links.append(
@@ -110,7 +117,26 @@ export function renderLayout() {
             );
         }
 
-        nav.append(brand, links);
+        const setMenuOpen = (isOpen) => {
+            nav.classList.toggle("is-menu-open", isOpen);
+            toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+            toggle.textContent = isOpen ? "Close" : "Menu";
+        };
+        toggle.addEventListener("click", () => {
+            setMenuOpen(!nav.classList.contains("is-menu-open"));
+        });
+        nav.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && nav.classList.contains("is-menu-open")) {
+                setMenuOpen(false);
+                toggle.focus();
+            }
+        });
+        links.addEventListener("click", (event) => {
+            if (event.target.closest("a")) {
+                setMenuOpen(false);
+            }
+        });
+        nav.append(brand, toggle, links);
         headerElement.append(nav);
         header.replaceChildren(headerElement);
 

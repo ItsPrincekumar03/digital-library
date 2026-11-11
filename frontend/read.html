@@ -11,9 +11,10 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/read.css?v=14.4.1">
+    <link rel="stylesheet" href="vendor/pdfjs/web/pdf_viewer.css?v=27.5.1">
+    <link rel="stylesheet" href="css/read.css?v=27.5.1">
 
-    <script type="module" src="js/router.js?v=14.4.1"></script>
+    <script type="module" src="js/router.js?v=27.5.1"></script>
 </head>
 
 <body data-page="read" data-access="auth">
@@ -39,6 +40,10 @@
                 <p class="eyebrow">Now reading</p>
                 <h1 id="read-title"></h1>
                 <p id="read-meta" class="muted" hidden></p>
+                <div id="read-mode-switch" class="read-mode-switch" role="group" aria-label="Reading mode" hidden>
+                    <button type="button" id="read-mode-reflow" class="read-mode-btn is-active" aria-pressed="true">EPUB-style (Reflowable)</button>
+                    <button type="button" id="read-mode-pdf" class="read-mode-btn" aria-pressed="false">Original PDF</button>
+                </div>
             </header>
 
             <div id="read-notice" class="read-notice" role="note" hidden></div>
@@ -49,6 +54,49 @@
 
             <div class="read-layout">
                 <div id="read-content" class="read-content" lang="en"></div>
+
+                <div id="read-pdf-viewer" class="read-pdf-viewer" hidden>
+                    <div class="read-pdf-toolbar">
+                        <span id="read-pdf-status" class="muted">Original PDF</span>
+                        <div class="read-pdf-controls" aria-label="PDF viewer controls">
+                            <div class="read-pdf-nav-group" role="group" aria-label="PDF page navigation">
+                                <button type="button" id="read-pdf-prev" class="button button-secondary button-small">Prev</button>
+                                <label class="read-pdf-page-label" for="read-pdf-page">
+                                    <span>Page</span>
+                                    <input id="read-pdf-page" type="number" min="1" value="1" inputmode="numeric" aria-label="PDF page number">
+                                    <span id="read-pdf-page-total" class="muted"></span>
+                                </label>
+                                <button type="button" id="read-pdf-next" class="button button-secondary button-small">Next</button>
+                            </div>
+                            <div class="read-pdf-zoom-group" role="group" aria-label="PDF zoom controls">
+                                <button type="button" id="read-pdf-zoom-out" class="button button-secondary button-small" aria-label="Zoom out">-</button>
+                                <span id="read-pdf-zoom-value" class="read-pdf-zoom-value" aria-live="polite">100%</span>
+                                <button type="button" id="read-pdf-zoom-in" class="button button-secondary button-small" aria-label="Zoom in">+</button>
+                                <button type="button" id="read-pdf-zoom-reset" class="button button-secondary button-small">Reset</button>
+                            </div>
+                        </div>
+                        <div class="read-pdf-actions">
+                            <button
+                                type="button"
+                                id="read-pdf-fullscreen"
+                                class="button button-secondary button-small read-pdf-fullscreen-btn"
+                                title="Enter Full Screen"
+                                aria-label="Enter Full Screen"
+                                aria-pressed="false"
+                            >
+                                <svg class="icon-enter-fullscreen" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                                <svg class="icon-exit-fullscreen" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+                                <span class="read-pdf-fullscreen-label">Full Screen</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="read-pdf-error" class="form-message error-message" role="alert" hidden></div>
+                    <div id="read-pdf-stage-wrap" class="read-pdf-stage-wrap">
+                        <div id="read-pdf-stage" class="read-pdf-stage" tabindex="0" aria-label="Original PDF document">
+                            <div id="read-pdf-pages" class="pdfViewer"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <aside id="read-settings-panel" class="read-settings-panel" aria-label="Settings" hidden>
                     <div class="read-settings-head">
@@ -175,12 +223,12 @@
                             </select>
 
                             <label class="read-label" for="read-audio-speed">Speed <output id="read-audio-speed-value" class="read-value">1×</output></label>
-                            <input type="range" id="read-audio-speed" min="0.5" max="4" step="0.25" value="1">
+                            <input type="range" id="read-audio-speed" min="0.5" max="3" step="0.25" value="1">
 
-                            <label class="read-label" for="read-audio-pitch">Pitch <output id="read-audio-pitch-value" class="read-value">1</output></label>
-                            <input type="range" id="read-audio-pitch" min="0" max="2" step="0.1" value="1">
+                            <label class="read-label" for="read-audio-pitch">Pitch <output id="read-audio-pitch-value" class="read-value">1×</output></label>
+                            <input type="range" id="read-audio-pitch" min="0.5" max="3" step="0.25" value="1">
 
-                            <p id="read-audio-note" class="read-help">Changes apply from the next sentence. Voices depend on your browser and device; some ignore pitch, and speeds above 2× may not be honoured.</p>
+                            <p id="read-audio-note" class="read-help">Changes apply from the next sentence. Speed and pitch support 0.5× to 3×; actual audible effect at high multipliers depends on your browser and selected voice.</p>
                         </fieldset>
                     </div>
                 </aside>

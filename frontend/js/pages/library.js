@@ -1,6 +1,13 @@
 import { api } from "../api.js";
-import { API_BASE_URL } from "../config.js";
+import { loadCoverIntoElements } from "../coverLoader.js";
 import { auth } from "../auth.js";
+import { ui } from "../ui.js";
+import {
+    fetchAllCategories,
+    normalizeSortValue,
+    populateCategoryOptions,
+    populateSortOptions,
+} from "../bookFilters.js";
 
 const PAGE_SIZE = 20;
 const MAX_SEARCH_LENGTH = 200;
@@ -22,19 +29,6 @@ function readStateFromUrl() {
             ? pageValue
             : 1;
 
-    const allowedSorts = new Set([
-        "created_at:DESC",
-        "title:ASC",
-        "title:DESC",
-        "publication_date:DESC",
-        "publication_date:ASC"
-    ]);
-
-    const requestedSort =
-        `${params.get("sort") || "created_at"}:${(
-            params.get("order") || "DESC"
-        ).toUpperCase()}`;
-
     return {
         page,
         search: (params.get("search") || "")
@@ -42,9 +36,7 @@ function readStateFromUrl() {
 
         category: params.get("category") || "",
 
-        sort: allowedSorts.has(requestedSort)
-            ? requestedSort
-            : "created_at:DESC"
+        sort: normalizeSortValue(params.get("sort"), params.get("order"))
     };
 }
 
@@ -52,6 +44,7 @@ let state = readStateFromUrl();
 let currentBooks = [];
 let availableCategories = [];
 let requestNumber = 0;
+let savedBookIds = new Set();
 
 function updateUrl() {
     const params = new URLSearchParams();
@@ -119,63 +112,16 @@ function friendlyError(error) {
     return "The library request could not be completed. Please try again.";
 }
 
-function setCoverImage(
-    image,
-    placeholder,
-    coverPath,
-    altText
-) {
-    const safePath =
-        typeof coverPath === "string"
-            ? coverPath.trim()
-            : "";
-
-    if (!safePath) {
-        image.hidden = true;
-        placeholder.hidden = false;
-        return;
-    }
-
-    try {
-        const origin =
-            new URL(API_BASE_URL).origin;
-
-        const normalizedPath =
-            safePath.startsWith("/")
-                ? safePath
-                : `/${safePath}`;
-
-        const url =
-            new URL(normalizedPath, origin);
-
-        if (
-            url.protocol !== "http:" &&
-            url.protocol !== "https:"
-        ) {
-            throw new Error(
-                "Unsupported image URL protocol."
-            );
-        }
-
-        image.alt =
-            altText || "Book cover";
-
-        image.src = url.href;
-        image.hidden = false;
-        placeholder.hidden = true;
-
-        image.addEventListener(
-            "error",
-            () => {
-                image.hidden = true;
-                placeholder.hidden = false;
-            },
-            { once: true }
-        );
-    } catch {
-        image.hidden = true;
-        placeholder.hidden = false;
-    }
+function setCoverImage(image, placeholder, book, altText) {
+    const bookId = book?.book_id;
+    const fallbackApiPath = Number.isSafeInteger(Number(bookId)) && Number(bookId) >= 1
+        ? `/books/${encodeURIComponent(String(bookId))}/cover`
+        : "";
+    loadCoverIntoElements(image, placeholder, {
+        coverPath: book?.cover_path || "",
+        fallbackApiPath,
+        altText: altText || "Book cover",
+    });
 }
 
 function openBook(bookId) {
@@ -216,225 +162,195 @@ function openBook(bookId) {
     );
 }
 
-function createBookCard(book) {
-    const card =
-        document.createElement("article");
-
-    card.className =
-        "book-card";
-
-    const coverWrap =
-        document.createElement("div");
-
-    coverWrap.className =
-        "book-card-cover-wrap";
-
-    const image =
-        document.createElement("img");
-
-    image.className =
-        "book-card-cover";
-
-    image.loading =
-        "lazy";
-
-    const placeholder =
-        document.createElement("div");
-
-    placeholder.className =
-        "cover-placeholder";
-
-    placeholder.textContent =
-        "Cover unavailable";
-
-    setCoverImage(
-        image,
-        placeholder,
-        book.cover_path,
-        "Cover for " +
-        (book.title || "book")
-    );
-
-    coverWrap.append(
-        image,
-        placeholder
-    );
-
-    const content =
-        document.createElement("div");
-
-    content.className =
-        "book-card-content";
-
-    const title =
-        document.createElement("h3");
-
-    title.textContent =
-        typeof book.title === "string" &&
-            book.title
-            ? book.title
-            : "Untitled book";
-
-    const description =
-        document.createElement("p");
-
-    description.className =
-        "book-card-description";
-
-    const descriptionText =
-        typeof book.description === "string"
-            ? book.description.trim()
-            : "";
-
-    description.textContent =
-        descriptionText ||
-        "No description is available.";
-
-    const meta =
-        document.createElement("p");
-
-    meta.className =
-        "book-card-meta";
-
-    const publicationDate =
-        book.publication_date;
-
-    if (publicationDate) {
-        const parsedDate =
-            new Date(publicationDate);
-
-        meta.textContent =
-            Number.isNaN(
-                parsedDate.getTime()
-            )
-                ? `Publication date: ${String(publicationDate)}`
-                : `Published ${parsedDate.toLocaleDateString()}`;
-    } else {
-        meta.textContent =
-            "Publication date not provided";
+function formatDate(value) {
+    if (!value) {
+        return "";
     }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return String(value);
+    }
+    return parsed.toLocaleDateString();
+}
 
-    /*
-     * Use a button instead of an anchor so no other navigation
-     * behavior can rewrite the URL.
-     */
-    const viewButton =
-        document.createElement("button");
-
-    viewButton.type =
-        "button";
-
-    viewButton.className =
-        "button button-primary";
-
-    viewButton.textContent =
-        "View book";
-
-    viewButton.setAttribute(
-        "aria-label",
-        `View book: ${title.textContent}`
-    );
-
-    viewButton.addEventListener(
-        "click",
-        () => {
-            openBook(book.book_id);
+function buildRelationBadges(book) {
+    const wrap = document.createElement("div");
+    wrap.className = "book-card-badges";
+    const authors = Array.isArray(book.authors) ? book.authors : [];
+    const categories = Array.isArray(book.categories) ? book.categories : [];
+    for (const author of authors.slice(0, 2)) {
+        if (author?.name) {
+            const badge = document.createElement("span");
+            badge.className = "book-meta-badge";
+            badge.textContent = author.name;
+            wrap.append(badge);
         }
-    );
+    }
+    for (const category of categories.slice(0, 2)) {
+        if (category?.name) {
+            const badge = document.createElement("span");
+            badge.className = "book-meta-badge";
+            badge.textContent = category.name;
+            wrap.append(badge);
+        }
+    }
+    if (book.file_format) {
+        const fmt = document.createElement("span");
+        fmt.className = "book-meta-badge book-meta-badge-format";
+        fmt.textContent = String(book.file_format).toUpperCase();
+        wrap.append(fmt);
+    }
+    return wrap;
+}
 
-    content.append(
-        title,
-        description,
-        meta,
-        viewButton
-    );
+async function loadSavedBookIds() {
+    if (!auth.isAuthenticated()) {
+        savedBookIds = new Set();
+        return;
+    }
+    try {
+        const res = await api.get("/private-library/saved");
+        const list = res?.data?.savedBooks;
+        savedBookIds = new Set(Array.isArray(list) ? list.map((b) => Number(b.book_id)) : []);
+    } catch (_) {
+        savedBookIds = new Set();
+    }
+}
 
-    card.append(
-        coverWrap,
-        content
-    );
+function syncSaveControls(saveButton, removeButton, bookId, bookTitle) {
+    const isSaved = savedBookIds.has(Number(bookId));
+    if (isSaved) {
+        saveButton.textContent = "Saved to My Library";
+        saveButton.className = "button button-saved";
+        saveButton.disabled = true;
+        saveButton.setAttribute("aria-pressed", "true");
+        saveButton.setAttribute("aria-label", `${bookTitle} is saved to My Library`);
+        removeButton.hidden = false;
+        removeButton.disabled = false;
+    } else {
+        saveButton.textContent = "Save to My Library";
+        saveButton.className = "button button-secondary";
+        saveButton.disabled = false;
+        saveButton.setAttribute("aria-pressed", "false");
+        saveButton.setAttribute("aria-label", `Save ${bookTitle} to My Library`);
+        removeButton.hidden = true;
+        removeButton.disabled = false;
+    }
+}
 
+function createBookCard(book) {
+    const card = document.createElement("article");
+    card.className = "book-card";
+
+    const coverWrap = document.createElement("div");
+    coverWrap.className = "book-card-cover-wrap";
+
+    const cover = document.createElement("img");
+    cover.className = "book-card-cover";
+    cover.hidden = true;
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "cover-placeholder";
+    placeholder.textContent = "No cover";
+
+    const fallbackApiPath = Number.isSafeInteger(Number(book.book_id)) && Number(book.book_id) >= 1
+        ? `/books/${encodeURIComponent(String(book.book_id))}/cover`
+        : "";
+
+    const bookTitle = typeof book.title === "string" && book.title.trim() ? book.title : "Untitled book";
+    loadCoverIntoElements(cover, placeholder, {
+        coverPath: book.cover_path,
+        fallbackApiPath,
+        altText: `Cover of ${bookTitle}`,
+    });
+
+    coverWrap.append(cover, placeholder);
+
+    const content = document.createElement("div");
+    content.className = "book-card-content";
+
+    const title = document.createElement("h3");
+    title.textContent = bookTitle;
+
+    const badges = buildRelationBadges(book);
+
+    const description = document.createElement("p");
+    description.className = "book-card-description";
+    description.textContent = typeof book.description === "string" && book.description.trim()
+        ? book.description
+        : "No description available.";
+
+    const meta = document.createElement("p");
+    meta.className = "book-card-meta";
+    const formattedDate = formatDate(book.publication_date);
+    if (formattedDate) {
+        meta.textContent = `Published ${formattedDate}`;
+    } else {
+        meta.textContent = "Publication date unavailable";
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "book-card-actions";
+
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.className = "button button-primary";
+    viewButton.textContent = "View book";
+    viewButton.setAttribute("aria-label", `View book: ${bookTitle}`);
+    viewButton.addEventListener("click", () => {
+        openBook(book.book_id);
+    });
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "button button-danger";
+    removeButton.textContent = "Remove from My Library";
+    removeButton.setAttribute("aria-label", `Remove ${bookTitle} from My Library`);
+
+    syncSaveControls(saveButton, removeButton, book.book_id, bookTitle);
+
+    saveButton.addEventListener("click", async () => {
+        const idNum = Number(book.book_id);
+        if (savedBookIds.has(idNum) || saveButton.disabled) return;
+        saveButton.disabled = true;
+        saveButton.textContent = "Saving?";
+        try {
+            await api.post(`/private-library/saved/${encodeURIComponent(String(idNum))}`, {});
+            savedBookIds.add(idNum);
+            ui.showToast(`Saved "${bookTitle}" to your private library.`, "success");
+        } catch (err) {
+            ui.showToast(err?.message || "Could not save book to your private library.", "error");
+        } finally {
+            syncSaveControls(saveButton, removeButton, idNum, bookTitle);
+        }
+    });
+
+    removeButton.addEventListener("click", async () => {
+        const idNum = Number(book.book_id);
+        if (!savedBookIds.has(idNum) || removeButton.disabled) return;
+        const ok = window.confirm(`Remove "${bookTitle}" from your personal library? The original book will remain in the public library.`);
+        if (!ok) return;
+        removeButton.disabled = true;
+        removeButton.textContent = "Removing?";
+        try {
+            await api.delete(`/private-library/saved/${encodeURIComponent(String(idNum))}`);
+            savedBookIds.delete(idNum);
+            ui.showToast(`Removed "${bookTitle}" from your private library.`, "info");
+        } catch (err) {
+            ui.showToast(err?.message || "Could not remove book from your private library.", "error");
+        } finally {
+            removeButton.textContent = "Remove from My Library";
+            syncSaveControls(saveButton, removeButton, idNum, bookTitle);
+        }
+    });
+
+    actions.append(viewButton, saveButton, removeButton);
+    content.append(title, badges, description, meta, actions);
+    card.append(coverWrap, content);
     return card;
-}
-
-function matchesSearch(book) {
-    if (!state.search) {
-        return true;
-    }
-
-    const query =
-        state.search.toLocaleLowerCase();
-
-    const title =
-        typeof book.title === "string"
-            ? book.title
-            : "";
-
-    const description =
-        typeof book.description === "string"
-            ? book.description
-            : "";
-
-    return `${title}\n${description}`
-        .toLocaleLowerCase()
-        .includes(query);
-}
-
-async function getBookCategoryIds(book) {
-    const response =
-        await api.get(
-            `/books/${encodeURIComponent(
-                String(book.book_id)
-            )}/categories`
-        );
-
-    const categories =
-        response?.data?.categories;
-
-    if (!Array.isArray(categories)) {
-        return [];
-    }
-
-    return categories.map(
-        (category) =>
-            String(category.category_id)
-    );
-}
-
-async function filterByCategory(books) {
-    if (!state.category) {
-        return books;
-    }
-
-    const categoryMatches =
-        await Promise.all(
-            books.map(
-                async (book) => {
-                    try {
-                        const ids =
-                            await getBookCategoryIds(
-                                book
-                            );
-
-                        return ids.includes(
-                            String(state.category)
-                        )
-                            ? book
-                            : null;
-                    } catch (error) {
-                        if (error.status === 404) {
-                            return null;
-                        }
-
-                        throw error;
-                    }
-                }
-            )
-        );
-
-    return categoryMatches.filter(
-        Boolean
-    );
 }
 
 function renderBooks(
@@ -446,31 +362,22 @@ function renderBooks(
 
     grid.replaceChildren();
 
-    const searchedBooks =
-        books.filter(
-            matchesSearch
-        );
+    const searchedBooks = books;
 
     const summary =
         element("results-summary");
+
+    const total = Number.isFinite(Number(meta?.totalItems))
+        ? Number(meta.totalItems)
+        : searchedBooks.length;
 
     if (
         state.search ||
         state.category
     ) {
         summary.textContent =
-            `${searchedBooks.length} matching book${searchedBooks.length === 1
-                ? ""
-                : "s"
-            } on this page`;
+            `${total} matching book${total === 1 ? "" : "s"}`;
     } else {
-        const total =
-            Number.isFinite(
-                Number(meta?.totalItems)
-            )
-                ? Number(meta.totalItems)
-                : books.length;
-
         summary.textContent =
             `${total} published book${total === 1 ? "" : "s"
             } in the catalog`;
@@ -540,71 +447,13 @@ function renderBooks(
 }
 
 async function loadCategories() {
-    const response =
-        await api.get(
-            "/categories"
-        );
-
-    const categories =
-        response?.data?.categories;
-
-    if (!Array.isArray(categories)) {
-        throw new Error(
-            "The category response did not contain a category list."
-        );
-    }
-
-    availableCategories =
-        categories;
-
-    const select =
-        element("category-filter");
-
-    for (
-        const category of categories
-    ) {
-        if (
-            category.category_id === undefined ||
-            typeof category.name !== "string"
-        ) {
-            continue;
-        }
-
-        const option =
-            document.createElement(
-                "option"
-            );
-
-        option.value =
-            String(
-                category.category_id
-            );
-
-        option.textContent =
-            category.name;
-
-        select.append(
-            option
-        );
-    }
-
-    if (
-        state.category &&
-        categories.some(
-            (category) =>
-                String(
-                    category.category_id
-                ) ===
-                String(
-                    state.category
-                )
-        )
-    ) {
-        select.value =
-            state.category;
-    } else {
-        state.category = "";
-    }
+    const categories = await fetchAllCategories();
+    availableCategories = categories;
+    state.category = populateCategoryOptions(
+        element("category-filter"),
+        categories,
+        state.category
+    );
 }
 
 async function loadBooks() {
@@ -653,6 +502,14 @@ async function loadBooks() {
                 order
             });
 
+        if (state.search) {
+            params.set("search", state.search);
+        }
+
+        if (state.category) {
+            params.set("category", state.category);
+        }
+
         const response =
             await api.get(
                 `/books?${params.toString()}`
@@ -684,20 +541,8 @@ async function loadBooks() {
         currentBooks =
             books;
 
-        const categoryFilteredBooks =
-            await filterByCategory(
-                currentBooks
-            );
-
-        if (
-            thisRequest !==
-            requestNumber
-        ) {
-            return;
-        }
-
         renderBooks(
-            categoryFilteredBooks,
+            currentBooks,
             meta
         );
     } catch (error) {
@@ -899,10 +744,10 @@ export async function init() {
     ).value =
         state.search;
 
-    element(
-        "sort-filter"
-    ).value =
-        state.sort;
+    populateSortOptions(
+        element("sort-filter"),
+        state.sort
+    );
 
     if (
         !auth.isAuthenticated()
@@ -930,7 +775,7 @@ export async function init() {
     }
 
     try {
-        await loadCategories();
+        await Promise.all([loadCategories(), loadSavedBookIds()]);
 
         element(
             "category-filter"

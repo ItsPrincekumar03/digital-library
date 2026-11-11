@@ -139,11 +139,43 @@ async function readResponse(
 }
 
 let authToken = null;
+let csrfToken = null;
 try {
     if (typeof sessionStorage !== "undefined") {
         authToken = sessionStorage.getItem("dl_auth_token");
+        csrfToken = sessionStorage.getItem("dl_csrf_token");
     }
 } catch (_) {}
+
+function readCsrfCookie() {
+    if (typeof document === "undefined" || !document.cookie) {
+        return null;
+    }
+
+    const match = document.cookie
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith("csrf_token="));
+
+    if (!match) {
+        return null;
+    }
+
+    return decodeURIComponent(match.slice("csrf_token=".length));
+}
+
+function storeCsrfToken(token) {
+    csrfToken = token || null;
+    try {
+        if (typeof sessionStorage !== "undefined") {
+            if (csrfToken) {
+                sessionStorage.setItem("dl_csrf_token", csrfToken);
+            } else {
+                sessionStorage.removeItem("dl_csrf_token");
+            }
+        }
+    } catch (_) {}
+}
 
 export const api = {
     setToken(token) {
@@ -165,6 +197,7 @@ export const api = {
 
     clearToken() {
         this.setToken(null);
+        storeCsrfToken(null);
     },
 
     async request(
@@ -187,6 +220,14 @@ export const api = {
 
         if (authToken && !headers.has("Authorization")) {
             headers.set("Authorization", `Bearer ${authToken}`);
+        }
+
+        const method = String(options.method || "GET").toUpperCase();
+        if (!["GET", "HEAD", "OPTIONS"].includes(method) && !headers.has("X-CSRF-Token")) {
+            const activeCsrfToken = readCsrfCookie() || csrfToken;
+            if (activeCsrfToken) {
+                headers.set("X-CSRF-Token", activeCsrfToken);
+            }
         }
 
         /*
@@ -233,6 +274,12 @@ export const api = {
             await readResponse(
                 response
             );
+
+        const headerCsrf = response.headers.get("X-CSRF-Token");
+        const bodyCsrf = payload && typeof payload === "object" ? payload.data?.csrfToken : null;
+        if (headerCsrf || bodyCsrf) {
+            storeCsrfToken(bodyCsrf || headerCsrf);
+        }
 
         if (!response.ok) {
             if (response.status === 401 && (path === "/auth/me" || path.endsWith("/auth/me"))) {

@@ -297,7 +297,8 @@ function createPrivateFileCard(privateFile) {
     openButton.className = "button button-primary";
     openButton.textContent = "Open";
     openButton.addEventListener("click", () => {
-        openPrivatePdf(privateFile.private_file_id);
+        window.location.href =
+            `read.html?id=${encodeURIComponent(String(privateFile.private_file_id))}&private=1`;
     });
 
     const deleteButton = document.createElement("button");

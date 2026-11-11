@@ -499,6 +499,7 @@ async function initReader() {
     const params = new URLSearchParams(window.location.search);
     const rawId = params.get("id");
     const id = Number(rawId);
+    const isPrivate = params.get("private") === "1";
 
     if (!rawId || !Number.isSafeInteger(id) || id < 1) {
         showError("A valid book ID was not provided.");
@@ -510,30 +511,38 @@ async function initReader() {
         return;
     }
 
-    element("read-back").href = `book.html?id=${encodeURIComponent(String(id))}`;
+    const backHref = isPrivate
+        ? "private-library.html"
+        : `book.html?id=${encodeURIComponent(String(id))}`;
+    element("read-back").href = backHref;
 
     let bookTitle = "Untitled book";
 
     try {
-        const bookResponse = await api.get(`/books/${encodeURIComponent(String(id))}`);
-        const book = bookResponse?.data?.book;
+        const metaPath = isPrivate
+            ? `/private-library/${encodeURIComponent(String(id))}`
+            : `/books/${encodeURIComponent(String(id))}`;
+        const metaResponse = await api.get(metaPath);
+        const meta = isPrivate ? metaResponse?.data?.privateFile : metaResponse?.data?.book;
 
         if (
-            book &&
-            typeof book.title === "string" &&
-            book.title.trim()
+            meta &&
+            typeof meta.title === "string" &&
+            meta.title.trim()
         ) {
-            bookTitle = book.title;
+            bookTitle = meta.title;
+        } else if (isPrivate && meta && typeof meta.original_file_name === "string") {
+            bookTitle = meta.original_file_name;
         }
     } catch {
-        // A missing title must not block reading: the document itself is
-        // authoritative for content. Errors surface via the document fetch.
+        // A missing title must not block reading.
     }
 
     try {
-        const documentResponse = await api.get(
-            `/books/${encodeURIComponent(String(id))}/document`
-        );
+        const documentPath = isPrivate
+            ? `/private-library/${encodeURIComponent(String(id))}/document`
+            : `/books/${encodeURIComponent(String(id))}/document`;
+        const documentResponse = await api.get(documentPath);
         const processedDocument = documentResponse?.data?.document;
 
         if (!processedDocument || typeof processedDocument !== "object") {

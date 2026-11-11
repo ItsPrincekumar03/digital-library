@@ -16,6 +16,7 @@ router.post('/login', authLimiter, loginRules, handleValidation, authController.
 router.post('/logout', requireAuth, authController.logout);
 
 router.get('/me', requireAuth, authController.me);
+router.get('/csrf-token', requireAuth, authController.csrfToken);
 router.get('/admin-check', requireAuth, requireRole('ADMIN'), (req, res) => {
     res.status(200).json({ success: true, message: 'Welcome, admin.' });
 });

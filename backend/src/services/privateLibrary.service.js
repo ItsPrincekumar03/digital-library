@@ -54,53 +54,61 @@ async function uploadPrivateFile(user, body, file) {
         throw badRequest('File is required.');
     }
 
-    // Validate format
-    if (!body.format) {
-        body.format = 'PDF';
+    let privateFileId;
+    try {
+        // Validate format
+        if (!body.format) {
+            body.format = 'PDF';
+        }
+        const formatResult = validateFormat(body.format);
+        if (!formatResult.valid) {
+            throw badRequest(formatResult.error);
+        }
+        const format = formatResult.format;
+
+        // Validate extension
+        const extResult = validateExtension(format, file.originalname);
+        if (!extResult.valid) {
+            throw badRequest(extResult.error);
+        }
+
+        // Validate MIME type
+        const mimeResult = validateMimeType(format, file.mimetype);
+        if (!mimeResult.valid) {
+            throw badRequest(mimeResult.error);
+        }
+
+        // Format-specific content validation
+        if (format === 'PDF') {
+            const { validatePdfFile } = require('../utils/pdfValidation');
+            await validatePdfFile(file.path);
+        } else if (format === 'EPUB') {
+            await validateEpubFile(file.path);
+        }
+
+        const title = buildTitle(body.title, file.originalname);
+
+        const description = typeof body.description === 'string'
+            ? body.description.trim()
+            : '';
+
+        privateFileId = await privateLibraryRepository.create({
+            ownerId: user.user_id,
+            title,
+            description: description || null,
+            originalFileName: file.originalname,
+            storedFileName: file.filename,
+            storagePath: 'private/' + file.filename,
+            mimeType: file.mimetype,
+            fileSize: file.size,
+            fileFormat: format
+        });
+    } catch (err) {
+        if (file.path) {
+            await deleteFileIfExists(file.path).catch(() => {});
+        }
+        throw err;
     }
-    const formatResult = validateFormat(body.format);
-    if (!formatResult.valid) {
-        throw badRequest(formatResult.error);
-    }
-    const format = formatResult.format;
-
-    // Validate extension
-    const extResult = validateExtension(format, file.originalname);
-    if (!extResult.valid) {
-        throw badRequest(extResult.error);
-    }
-
-    // Validate MIME type
-    const mimeResult = validateMimeType(format, file.mimetype);
-    if (!mimeResult.valid) {
-        throw badRequest(mimeResult.error);
-    }
-
-    // Format-specific content validation
-    if (format === 'PDF') {
-        const { validatePdfFile } = require('../utils/pdfValidation');
-        await validatePdfFile(file.path);
-    } else if (format === 'EPUB') {
-        await validateEpubFile(file.path);
-    }
-
-    const title = buildTitle(body.title, file.originalname);
-
-    const description = typeof body.description === 'string'
-        ? body.description.trim()
-        : '';
-
-    const privateFileId = await privateLibraryRepository.create({
-        ownerId: user.user_id,
-        title,
-        description: description || null,
-        originalFileName: file.originalname,
-        storedFileName: file.filename,
-        storagePath: 'private/' + file.filename,
-        mimeType: file.mimetype,
-        fileSize: file.size,
-        fileFormat: format
-    });
 
     const privateFile = await privateLibraryRepository.findByIdAndOwner(
         privateFileId,

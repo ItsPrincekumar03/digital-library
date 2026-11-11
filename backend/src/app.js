@@ -4,6 +4,9 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
 const errorHandler = require('./middleware/errorHandler');
+const { buildCspConfig } = require('./config/csp.config');
+const { isOriginAllowed } = require('./config/cors.config');
+const { csrfProtection } = require('./middleware/csrf.middleware');
 
 // Routes
 const healthRoutes = require('./routes/health.routes');
@@ -22,75 +25,52 @@ const app = express();
 // -----------------------------
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Module 27 SEC-02: Custom CSP compatible with the reader stack (PDF.js worker,
+// Web Speech API TTS, same-origin scripts and styles).
+const cspConfig = buildCspConfig(isProduction);
+
 app.use(
     helmet({
         strictTransportSecurity: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
-        contentSecurityPolicy: isProduction ? undefined : false,
-        crossOriginResourcePolicy: isProduction ? undefined : { policy: "cross-origin" },
+        contentSecurityPolicy: cspConfig,
+        crossOriginResourcePolicy: isProduction ? undefined : { policy: 'cross-origin' },
     })
 );
 
 // -----------------------------
 // CORS
 // -----------------------------
-const allowedOrigins = isProduction
-    ? []
-    : [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-    ];
-
-if (process.env.CORS_ORIGIN) {
-    const configuredOrigin = process.env.CORS_ORIGIN.trim();
-
-    if (
-        configuredOrigin &&
-        !allowedOrigins.includes(configuredOrigin)
-    ) {
-        allowedOrigins.push(configuredOrigin);
-    }
-}
-
 app.use(
     cors({
         origin: function (origin, callback) {
-            // Requests without an Origin header are allowed.
+            // Requests without an Origin header (e.g. same-origin GETs, curl, health checks) are allowed.
             if (!origin) {
                 return callback(null, true);
             }
 
-            if (allowedOrigins.includes(origin)) {
+            if (isOriginAllowed(origin)) {
                 return callback(null, true);
             }
 
-            // Development may use other localhost ports.
-            if (!isProduction) {
-                try {
-                    const url = new URL(origin);
-
-                    if (
-                        url.hostname === 'localhost' ||
-                        url.hostname === '127.0.0.1'
-                    ) {
-                        return callback(null, true);
-                    }
-                } catch (_) {
-                    // Invalid origins are rejected below.
-                }
-            }
-
-            return callback(new Error('Not allowed by CORS'));
+            const err = new Error('Not allowed by CORS');
+            err.status = 403;
+            err.code = 'CSRF_ORIGIN_FORBIDDEN';
+            return callback(err);
         },
         credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+        exposedHeaders: ['X-CSRF-Token'],
     })
 );
 
 // -----------------------------
-// Request parsing
+// Request parsing & CSRF guard
 // -----------------------------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Module 27 SEC-01: CSRF protection runs before route handlers and Multer uploads.
+app.use(csrfProtection);
 
 // -----------------------------
 // API Routes

@@ -248,6 +248,9 @@ async function importBookPdf(bookId, requestingUser, file, format) {
     const { validateFormat, validateExtension, validateMimeType } = require('../utils/formatValidation');
     const formatResult = validateFormat(format || 'PDF');
     if (!formatResult.valid) {
+        if (file && file.path) {
+            await deleteFileIfExists(file.path).catch(() => {});
+        }
         const err = new Error(formatResult.error);
         err.status = 400;
         throw err;

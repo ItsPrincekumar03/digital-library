@@ -1,4 +1,5 @@
 const { body, param, validationResult } = require('express-validator');
+const { deleteFileIfExists } = require('../utils/fileStorage');
 
 const idParamRule = [
     param('id')
@@ -31,6 +32,9 @@ function handleValidation(req, res, next) {
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
+        if (req.file && req.file.path) {
+            deleteFileIfExists(req.file.path).catch(() => {});
+        }
         return res.status(400).json({
             success: false,
             message: 'Validation failed',

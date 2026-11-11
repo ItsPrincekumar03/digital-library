@@ -356,6 +356,38 @@ async function applyMigrations(connection, expectedDatabase) {
         console.log('[MIGRATE] revoked_tokens table already exists.');
     }
 
+    // 7. Authentication events table (Module 27 SEC-04: persistent auth audit log)
+    if (!(await tableExists(connection, expectedDatabase, 'auth_events'))) {
+        await assertDatabase(connection, expectedDatabase);
+        console.log('[MIGRATE] Creating auth_events table...');
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS auth_events (
+                event_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                event_type ENUM(
+                    'REGISTER_SUCCESS',
+                    'LOGIN_SUCCESS',
+                    'LOGIN_FAILURE',
+                    'LOGOUT',
+                    'PASSWORD_CHANGED',
+                    'PASSWORD_CHANGE_FAILED'
+                ) NOT NULL,
+                user_id BIGINT UNSIGNED NULL,
+                ip_address VARCHAR(45) NULL,
+                user_agent VARCHAR(500) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_auth_events_user
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                    ON DELETE SET NULL ON UPDATE CASCADE,
+                INDEX idx_auth_events_user_id (user_id),
+                INDEX idx_auth_events_event_type (event_type),
+                INDEX idx_auth_events_created_at (created_at)
+            ) ENGINE=InnoDB;
+        `);
+        console.log('[MIGRATE] Created auth_events table.');
+    } else {
+        console.log('[MIGRATE] auth_events table already exists.');
+    }
+
     console.log(`[MIGRATE] Incremental migrations completed for "${expectedDatabase}".`);
 }
 

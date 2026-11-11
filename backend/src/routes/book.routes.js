@@ -7,6 +7,7 @@ const chapterController = require('../controllers/chapter.controller');
 const requireAuth = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
 const { handlePublicPdfUpload } = require('../middleware/upload.middleware');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 const {
   createBookRules, updateBookRules, idParamRule, bookIdParamRule, imageNameParamRule, chapterIndexParamRule, handleValidation,
 } = require('../validators/book.validator');
@@ -27,7 +28,8 @@ router.get('/:id/chapters/:chapterIndex', requireAuth, idParamRule, chapterIndex
 router.put('/:id', requireAuth, requireRole('ADMIN'), idParamRule, updateBookRules, handleValidation, bookController.update);
 router.patch('/:id/publish', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.publish);
 router.patch('/:id/archive', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, bookController.archive);
-router.post('/:id/pdf', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, handlePublicPdfUpload, bookController.importPdf);
+// Module 27 SEC-03: upload endpoints are rate-limited to prevent automated bulk uploads
+router.post('/:id/pdf', requireAuth, requireRole('ADMIN'), idParamRule, handleValidation, uploadLimiter, handlePublicPdfUpload, bookController.importPdf);
 
 router.post('/:bookId/authors', requireAuth, requireRole('ADMIN'), bookIdParamRule, addAuthorRules, handleRelationValidation, bookRelationsController.addAuthor);
 router.get('/:bookId/authors', requireAuth, bookIdParamRule, handleRelationValidation, bookRelationsController.getAuthors);

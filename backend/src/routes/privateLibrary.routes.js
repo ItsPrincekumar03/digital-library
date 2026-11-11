@@ -4,6 +4,7 @@ const router = express.Router();
 const privateLibraryController = require('../controllers/privateLibrary.controller');
 const requireAuth = require('../middleware/auth.middleware');
 const { handlePrivatePdfUpload } = require('../middleware/upload.middleware');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 const {
     idParamRule,
     uploadRules,
@@ -15,6 +16,7 @@ router.get('/', requireAuth, privateLibraryController.list);
 router.post(
     '/upload',
     requireAuth,
+    uploadLimiter,            // Module 27 SEC-03: rate-limit upload endpoint
     handlePrivatePdfUpload,
     uploadRules,
     handleValidation,

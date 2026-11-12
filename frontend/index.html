@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Digital Library — browse and read library content.">
+    <meta name="description" content="Digital Library — discover and read library content.">
     <title>Digital Library</title>
 
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/home-profile.css?v=29.5.1">
 
     <script type="module" src="js/router.js"></script>
 </head>
@@ -22,25 +23,111 @@
 
     <main class="container page-main">
 
-        <section class="hero card">
-            <p class="eyebrow">Your reading space</p>
+        <!-- ============================================================
+             HERO — split layout: content left, illustration right
+             ============================================================ -->
+        <section class="hero-29" aria-labelledby="hero-heading">
 
-            <h1>Welcome to the Digital Library</h1>
+            <!-- Left: content -->
+            <div class="hero-29__content">
 
-            <p class="hero-copy">
-                A foundation for discovering and reading library content.
-            </p>
+                <p class="hero-29__eyebrow hero-29__anim hero-29__anim--delay-1" aria-hidden="true">
+                    Your Reading Space
+                </p>
 
-            <div id="home-actions" class="button-row"></div>
+                <h1 id="hero-heading" class="hero-29__heading hero-29__anim hero-29__anim--delay-2">
+                    Discover a <em>World</em><br>of Reading
+                </h1>
+
+                <p class="hero-29__copy hero-29__anim hero-29__anim--delay-3">
+                    Explore published books, organise your personal reading space and
+                    enjoy a more comfortable digital reading experience.
+                </p>
+
+                <!-- JS renders buttons into this div (index.js) -->
+                <div id="home-actions" class="hero-29__actions hero-29__anim hero-29__anim--delay-4"></div>
+
+            </div>
+
+            <!-- Right: CSS-drawn open book illustration -->
+            <div class="hero-29__visual hero-29__visual-anim" aria-hidden="true">
+                <div class="hero-29__blob"></div>
+                <div class="hero-29__circle hero-29__circle--lg"></div>
+                <div class="hero-29__circle hero-29__circle--sm"></div>
+
+                <div class="book-visual" role="img" aria-label="Open book illustration">
+                    <div class="book-visual__left"></div>
+                    <div class="book-visual__spine"></div>
+                    <div class="book-visual__right"></div>
+                </div>
+
+                <span class="hero-29__chip hero-29__chip--top">📖 Reading now</span>
+                <span class="hero-29__chip hero-29__chip--bottom">📚 Public Library</span>
+            </div>
+
         </section>
 
-        <section class="content-section">
-            <h2>A library built for readers</h2>
-
-            <p class="muted">
-                Sign in to access your account. Published public books and reading
-                features will appear here as the project grows.
+        <!-- ============================================================
+             SEARCH CALLOUT — links to existing library route
+             ============================================================ -->
+        <div class="search-callout-29" role="complementary" aria-label="Browse the library">
+            <p class="search-callout-29__label">
+                <strong>Looking for a book?</strong>
+                Browse the full catalogue of published titles.
             </p>
+            <a href="library.html" class="search-callout-29__link">
+                <span class="search-callout-29__icon" aria-hidden="true">🔍</span>
+                Explore Library
+                <span aria-hidden="true">→</span>
+            </a>
+        </div>
+
+        <!-- ============================================================
+             FEATURES — existing product capabilities
+             ============================================================ -->
+        <section class="features-29" aria-labelledby="features-heading">
+
+            <div class="features-29__header">
+                <h2 id="features-heading" class="features-29__heading">
+                    A library built for readers
+                </h2>
+                <p class="features-29__subheading">
+                    Everything you need to discover, store and enjoy books
+                    — available as soon as you sign in.
+                </p>
+            </div>
+
+            <div class="features-29__grid">
+
+                <article class="feature-card-29 feature-card-29--emerald">
+                    <div class="feature-card-29__icon" aria-hidden="true">📚</div>
+                    <h3 class="feature-card-29__title">Discover Books</h3>
+                    <p class="feature-card-29__body">
+                        Browse the public catalogue of published books. Open any
+                        title directly in the built-in reader — no downloads needed.
+                    </p>
+                </article>
+
+                <article class="feature-card-29 feature-card-29--purple">
+                    <div class="feature-card-29__icon" aria-hidden="true">🔒</div>
+                    <h3 class="feature-card-29__title">Personal Library</h3>
+                    <p class="feature-card-29__body">
+                        Upload and privately store your own PDF documents.
+                        Your personal files are visible only to you.
+                    </p>
+                </article>
+
+                <article class="feature-card-29 feature-card-29--amber">
+                    <div class="feature-card-29__icon" aria-hidden="true">📖</div>
+                    <h3 class="feature-card-29__title">Comfortable Reading</h3>
+                    <p class="feature-card-29__body">
+                        Customise themes, font size and line spacing. Enable
+                        text-to-speech for a hands-free reading experience.
+                    </p>
+                </article>
+
+            </div>
+
         </section>
 
     </main>

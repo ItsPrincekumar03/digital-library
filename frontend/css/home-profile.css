@@ -1,0 +1,1063 @@
+/* ==========================================================================
+   HOME-PROFILE.CSS — Module 29.5
+   Page-scoped overrides and new components for index.html and profile.html.
+   ALL selectors are prefixed with body[data-page="index"] or
+   body[data-page="profile"] so ZERO styles leak to other pages.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. PAGE-SCOPED DESIGN TOKENS
+   Override the global blue palette with the approved emerald/purple/gold system.
+   Accessibility Fix: Using #126B50 for primary emerald to guarantee WCAG AA
+   contrast on both white (6.47:1) and sage #EAF5EF (5.80:1).
+   -------------------------------------------------------------------------- */
+
+body[data-page="index"],
+body[data-page="profile"] {
+    --color-primary:          #126B50;   /* Accessible Emerald (6.47:1 on white, 5.80:1 on sage) */
+    --color-primary-dark:     #174D3A;   /* Deep Emerald — hover states (9.73:1 on white)        */
+    --color-secondary:        #76528B;   /* Purple — accent cards (6.27:1 on white)              */
+    --color-secondary-light:  #E9DFF0;   /* Light purple surface                                 */
+    --color-accent:           #D49A2D;   /* Golden Amber — decorative non-text                   */
+    --color-accent-light:     #FBF0D3;   /* Light amber surface                                  */
+    --color-background:       #F4F7F5;   /* Sage background                                      */
+    --color-surface:          #FFFFFF;   /* Card white                                           */
+    --color-surface-soft:     #EAF5EF;   /* Light sage card bg                                   */
+    --color-surface-lavender: #F1EAF7;   /* Light lavender bg                                    */
+    --color-surface-cream:    #FBF6EC;   /* Warm cream bg                                        */
+    --color-text:             #27332E;   /* Charcoal — 13.13:1 on white                          */
+    --color-muted:            #4E6058;   /* Green-gray — 6.69:1 on white (AA)                    */
+    --color-border:           #CDDBD2;   /* Sage-tinted border                                   */
+    --color-danger:           #5B2E6B;   /* Dark plum — no red                                   */
+    --color-warning:          #C88A1A;   /* Amber warning                                        */
+    --color-success:          #0E6B3F;   /* Forest green success                                 */
+
+    /* Focus outline color: Opaque #126B50 (6.47:1 on white, 6.00:1 on sage bg, 5.80:1 on sage soft) */
+    --color-focus:            #126B50;
+
+    /* Shadows */
+    --shadow-card:  0 2px 12px rgba(23, 77, 58, 0.08);
+    --shadow-hover: 0 8px 28px rgba(23, 77, 58, 0.14);
+    --shadow-btn:   0 1px 4px rgba(23, 77, 58, 0.18);
+
+    /* Transitions restricted to transform & opacity only per motion requirement */
+    --trans-fast:   140ms ease;
+    --trans-mid:    240ms ease;
+    --trans-enter:  420ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+/* Focus ring — Opaque #126B50 with 2px offset for guaranteed >3:1 UI contrast */
+body[data-page="index"] *:focus-visible,
+body[data-page="profile"] *:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+/* Brand-mark — emerald instead of blue */
+body[data-page="index"] .brand-mark,
+body[data-page="profile"] .brand-mark {
+    background: var(--color-primary);
+}
+
+/* Nav hover — emerald (immediate color change, no color transition) */
+body[data-page="index"] .nav-links a:hover,
+body[data-page="profile"] .nav-links a:hover {
+    color: var(--color-primary);
+}
+
+/* Nav toggle hover */
+body[data-page="index"] .nav-toggle:hover,
+body[data-page="profile"] .nav-toggle:hover {
+    background: var(--color-surface-soft);
+    border-color: var(--color-border);
+}
+
+body[data-page="index"] .nav-toggle:focus-visible,
+body[data-page="profile"] .nav-toggle:focus-visible {
+    outline: 3px solid var(--color-focus);
+}
+
+/* Eyebrow — emerald */
+body[data-page="index"] .eyebrow,
+body[data-page="profile"] .eyebrow {
+    color: var(--color-primary);
+}
+
+/* Primary button — emerald (transition restricted to transform only) */
+body[data-page="index"] .button-primary,
+body[data-page="profile"] .button-primary {
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: var(--shadow-btn);
+    transition: transform var(--trans-fast);
+}
+
+body[data-page="index"] .button-primary:hover,
+body[data-page="profile"] .button-primary:hover {
+    background: var(--color-primary-dark);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+body[data-page="index"] .button-primary:focus-visible,
+body[data-page="profile"] .button-primary:focus-visible {
+    outline: 3px solid var(--color-focus);
+}
+
+/* Secondary button (transition restricted to transform only) */
+body[data-page="index"] .button-secondary,
+body[data-page="profile"] .button-secondary {
+    border-color: var(--color-border);
+    color: var(--color-text);
+    background: var(--color-surface);
+    transition: transform var(--trans-fast);
+}
+
+body[data-page="index"] .button-secondary:hover,
+body[data-page="profile"] .button-secondary:hover {
+    background: var(--color-surface-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+/* Footer */
+body[data-page="index"] .site-footer,
+body[data-page="profile"] .site-footer {
+    background: var(--color-surface);
+    border-top-color: var(--color-border);
+    color: var(--color-muted);
+}
+
+/* Toast */
+body[data-page="index"] .toast-info,
+body[data-page="profile"] .toast-info {
+    border-left-color: var(--color-primary);
+}
+
+body[data-page="index"] .toast-error,
+body[data-page="profile"] .toast-error {
+    border-left-color: var(--color-danger);
+}
+
+
+/* ==========================================================================
+   2. HOMEPAGE — INDEX HERO (Split layout)
+   ========================================================================== */
+
+body[data-page="index"] .hero-29 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 3rem;
+
+    padding-block: clamp(2.5rem, 7vw, 5rem);
+    padding-inline: clamp(1.5rem, 4vw, 2.5rem);
+
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+
+    overflow: hidden;
+    position: relative;
+}
+
+/* Soft sage tint behind the hero */
+body[data-page="index"] .hero-29::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse at 80% -10%,
+        rgba(18, 107, 80, 0.07) 0%,
+        transparent 55%
+    );
+    pointer-events: none;
+}
+
+/* ---- Hero Content Side ---- */
+body[data-page="index"] .hero-29__content {
+    position: relative;
+    z-index: 1;
+}
+
+body[data-page="index"] .hero-29__eyebrow {
+    display: inline-block;
+    margin-bottom: 0.65rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 100px;
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+body[data-page="index"] .hero-29__heading {
+    margin-bottom: 1rem;
+    font-size: clamp(2rem, 4.5vw, 3rem);
+    line-height: 1.15;
+    color: var(--color-text);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+body[data-page="index"] .hero-29__heading em {
+    font-style: normal;
+    color: var(--color-primary);
+}
+
+body[data-page="index"] .hero-29__copy {
+    margin-bottom: 1.75rem;
+    max-width: 480px;
+    color: var(--color-muted);
+    font-size: 1.08rem;
+    line-height: 1.65;
+}
+
+body[data-page="index"] .hero-29__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* ---- Hero Visual Side ---- */
+body[data-page="index"] .hero-29__visual {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 260px;
+    user-select: none;
+}
+
+/* Open book base shape */
+body[data-page="index"] .book-visual {
+    position: relative;
+    width: 220px;
+    height: 170px;
+}
+
+body[data-page="index"] .book-visual__left,
+body[data-page="index"] .book-visual__right {
+    position: absolute;
+    top: 0;
+    width: 100px;
+    height: 160px;
+    border-radius: 4px 0 0 8px;
+    background: var(--color-surface-soft);
+    border: 2px solid var(--color-border);
+}
+
+body[data-page="index"] .book-visual__left {
+    left: 0;
+    border-radius: 8px 0 0 8px;
+    background: linear-gradient(135deg, var(--color-surface-soft) 0%, #fff 100%);
+    box-shadow: -4px 4px 14px rgba(23, 77, 58, 0.09);
+    transform: perspective(400px) rotateY(12deg);
+    transform-origin: right center;
+}
+
+body[data-page="index"] .book-visual__right {
+    right: 0;
+    border-radius: 0 8px 8px 0;
+    background: linear-gradient(225deg, var(--color-surface-cream) 0%, #fff 100%);
+    box-shadow: 4px 4px 14px rgba(23, 77, 58, 0.09);
+    transform: perspective(400px) rotateY(-12deg);
+    transform-origin: left center;
+}
+
+/* Lines on book pages */
+body[data-page="index"] .book-visual__left::before,
+body[data-page="index"] .book-visual__right::before {
+    content: "";
+    position: absolute;
+    top: 24px;
+    left: 14px;
+    right: 14px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--color-border);
+    box-shadow:
+        0 14px 0 var(--color-border),
+        0 28px 0 var(--color-border),
+        0 42px 0 rgba(205, 219, 210, 0.6),
+        0 56px 0 rgba(205, 219, 210, 0.4),
+        0 70px 0 rgba(205, 219, 210, 0.3);
+}
+
+/* Book spine */
+body[data-page="index"] .book-visual__spine {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 160px;
+    background: linear-gradient(to bottom, var(--color-primary-dark), var(--color-primary));
+    border-radius: 2px;
+    z-index: 2;
+}
+
+/* Decorative background blob */
+body[data-page="index"] .hero-29__blob {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 60% 40% 55% 45% / 45% 55% 45% 55%;
+    background: radial-gradient(
+        circle at 40% 40%,
+        rgba(18, 107, 80, 0.09),
+        rgba(118, 82, 139, 0.06) 60%,
+        transparent 80%
+    );
+    z-index: 0;
+}
+
+/* Floating metadata chip */
+body[data-page="index"] .hero-29__chip {
+    position: absolute;
+    z-index: 3;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-card);
+    font-size: 0.75rem;
+    font-weight: 650;
+    color: var(--color-text);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+body[data-page="index"] .hero-29__chip--top {
+    top: 10px;
+    right: -10px;
+    color: var(--color-primary);
+    border-color: rgba(18, 107, 80, 0.25);
+    background: var(--color-surface-soft);
+}
+
+body[data-page="index"] .hero-29__chip--bottom {
+    bottom: 10px;
+    left: -10px;
+    color: var(--color-secondary);
+    border-color: rgba(118, 82, 139, 0.2);
+    background: var(--color-surface-lavender);
+}
+
+/* ---- Accent circle decorations ---- */
+body[data-page="index"] .hero-29__circle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body[data-page="index"] .hero-29__circle--lg {
+    width: 180px;
+    height: 180px;
+    top: -40px;
+    right: -40px;
+    background: rgba(18, 107, 80, 0.06);
+}
+
+body[data-page="index"] .hero-29__circle--sm {
+    width: 80px;
+    height: 80px;
+    bottom: -20px;
+    left: 20px;
+    background: rgba(118, 82, 139, 0.07);
+}
+
+
+/* ==========================================================================
+   3. HOMEPAGE — SEARCH CALLOUT
+   ========================================================================== */
+
+body[data-page="index"] .search-callout-29 {
+    margin-top: 1.5rem;
+    padding: 1rem 1.4rem;
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+body[data-page="index"] .search-callout-29__label {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+}
+
+body[data-page="index"] .search-callout-29__label strong {
+    color: var(--color-text);
+}
+
+body[data-page="index"] .search-callout-29__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    background: var(--color-surface-soft);
+    border: 1px solid rgba(18, 107, 80, 0.25);
+    color: var(--color-primary);
+    font-size: 0.9rem;
+    font-weight: 650;
+    text-decoration: none;
+    transition: transform var(--trans-fast);
+    white-space: nowrap;
+}
+
+body[data-page="index"] .search-callout-29__link:hover {
+    background: rgba(18, 107, 80, 0.12);
+    color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+}
+
+body[data-page="index"] .search-callout-29__link:focus-visible {
+    outline: 3px solid var(--color-focus);
+}
+
+body[data-page="index"] .search-callout-29__icon {
+    font-size: 1rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+
+
+/* ==========================================================================
+   4. HOMEPAGE — FEATURES SECTION
+   ========================================================================== */
+
+body[data-page="index"] .features-29 {
+    margin-top: 3rem;
+}
+
+body[data-page="index"] .features-29__header {
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+body[data-page="index"] .features-29__heading {
+    font-size: clamp(1.4rem, 3vw, 1.9rem);
+    font-weight: 750;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+}
+
+body[data-page="index"] .features-29__subheading {
+    color: var(--color-muted);
+    font-size: 1rem;
+    max-width: 540px;
+    margin-inline: auto;
+    margin-bottom: 2rem;
+}
+
+body[data-page="index"] .features-29__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+
+/* Feature Card Base:
+   Progressive Enhancement — Cards are VISIBLE by default.
+   Only when JS adds .has-entrance-prep are they hidden for transition.
+*/
+body[data-page="index"] .feature-card-29 {
+    padding: 1.5rem 1.4rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    opacity: 1;
+    transform: none;
+    transition: transform var(--trans-mid);
+}
+
+body[data-page="index"] .feature-card-29:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-hover);
+}
+
+body[data-page="index"] .feature-card-29:focus-within {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+/* Card icon */
+body[data-page="index"] .feature-card-29__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+/* Card title */
+body[data-page="index"] .feature-card-29__title {
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* Card body */
+body[data-page="index"] .feature-card-29__body {
+    color: var(--color-muted);
+    font-size: 0.93rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Accent variants */
+body[data-page="index"] .feature-card-29--emerald {
+    border-top: 3px solid var(--color-primary);
+}
+
+body[data-page="index"] .feature-card-29--emerald .feature-card-29__icon {
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+}
+
+body[data-page="index"] .feature-card-29--emerald .feature-card-29__title {
+    color: var(--color-primary-dark);
+}
+
+body[data-page="index"] .feature-card-29--purple {
+    border-top: 3px solid var(--color-secondary);
+}
+
+body[data-page="index"] .feature-card-29--purple .feature-card-29__icon {
+    background: var(--color-surface-lavender);
+    color: var(--color-secondary);
+}
+
+body[data-page="index"] .feature-card-29--purple .feature-card-29__title {
+    color: var(--color-secondary);
+}
+
+body[data-page="index"] .feature-card-29--amber {
+    border-top: 3px solid var(--color-accent);
+}
+
+body[data-page="index"] .feature-card-29--amber .feature-card-29__icon {
+    background: var(--color-accent-light);
+    color: #8B6214;
+}
+
+body[data-page="index"] .feature-card-29--amber .feature-card-29__title {
+    color: #6B4A0E;
+}
+
+
+/* ==========================================================================
+   5. HOMEPAGE — PROGRESSIVE ENHANCEMENT & MOTION
+   Content is visible by default (opacity: 1, transform: none).
+   Animation prep classes (.has-entrance-prep) are added ONLY by JS.
+   Transitions restricted to transform and opacity only.
+   ========================================================================== */
+
+/* Default visible state for all elements */
+body[data-page="index"] .hero-29__anim,
+body[data-page="index"] .hero-29__visual-anim {
+    opacity: 1;
+    transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* When JS activates animation prep, apply initial offset & transition */
+    body[data-page="index"] .hero-29__anim.has-entrance-prep {
+        opacity: 0;
+        transform: translateY(18px);
+        transition:
+            opacity var(--trans-enter),
+            transform var(--trans-enter);
+    }
+
+    body[data-page="index"] .hero-29__anim.has-entrance-prep.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    body[data-page="index"] .hero-29__anim--delay-1 { transition-delay: 80ms; }
+    body[data-page="index"] .hero-29__anim--delay-2 { transition-delay: 170ms; }
+    body[data-page="index"] .hero-29__anim--delay-3 { transition-delay: 260ms; }
+    body[data-page="index"] .hero-29__anim--delay-4 { transition-delay: 360ms; }
+
+    body[data-page="index"] .hero-29__visual-anim.has-entrance-prep {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+        transition:
+            opacity 540ms cubic-bezier(0.22, 1, 0.36, 1) 220ms,
+            transform 540ms cubic-bezier(0.22, 1, 0.36, 1) 220ms;
+    }
+
+    body[data-page="index"] .hero-29__visual-anim.has-entrance-prep.is-visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    body[data-page="index"] .feature-card-29.has-entrance-prep {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+            opacity var(--trans-enter),
+            transform var(--trans-enter);
+    }
+
+    body[data-page="index"] .feature-card-29.has-entrance-prep.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+        transition:
+            opacity var(--trans-enter),
+            transform var(--trans-enter);
+    }
+
+    body[data-page="index"] .feature-card-29.has-entrance-prep.is-visible:hover {
+        transform: translateY(-4px);
+        transition: transform var(--trans-mid);
+    }
+}
+
+/* Reduced-motion: strictly instant, no transforms, immediately visible */
+@media (prefers-reduced-motion: reduce) {
+    body[data-page="index"] .hero-29__anim,
+    body[data-page="index"] .hero-29__visual-anim,
+    body[data-page="index"] .feature-card-29 {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+    }
+
+    body[data-page="index"] .feature-card-29:hover,
+    body[data-page="index"] .button-primary:hover,
+    body[data-page="index"] .button-secondary:hover,
+    body[data-page="index"] .search-callout-29__link:hover {
+        transform: none !important;
+        transition: none !important;
+    }
+}
+
+
+/* ==========================================================================
+   6. HOMEPAGE — RESPONSIVE
+   ========================================================================== */
+
+/* Tablet: 768–1023px */
+@media (max-width: 1023px) and (min-width: 768px) {
+    body[data-page="index"] .hero-29 {
+        gap: 2rem;
+    }
+
+    body[data-page="index"] .hero-29__heading {
+        font-size: clamp(1.75rem, 3.5vw, 2.4rem);
+    }
+
+    body[data-page="index"] .features-29__grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile: ≤767px */
+@media (max-width: 767px) {
+    body[data-page="index"] .hero-29 {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding-block: 2rem;
+    }
+
+    body[data-page="index"] .hero-29__copy {
+        max-width: 100%;
+    }
+
+    body[data-page="index"] .hero-29__visual {
+        order: -1;
+        min-height: 180px;
+    }
+
+    body[data-page="index"] .book-visual {
+        width: 160px;
+        height: 125px;
+    }
+
+    body[data-page="index"] .book-visual__left,
+    body[data-page="index"] .book-visual__right {
+        width: 73px;
+        height: 120px;
+    }
+
+    body[data-page="index"] .book-visual__spine {
+        height: 120px;
+    }
+
+    body[data-page="index"] .hero-29__blob {
+        width: 200px;
+        height: 200px;
+    }
+
+    body[data-page="index"] .hero-29__chip {
+        font-size: 0.68rem;
+        padding: 0.3rem 0.55rem;
+    }
+
+    body[data-page="index"] .hero-29__chip--top {
+        right: 0;
+        top: 0;
+    }
+
+    body[data-page="index"] .hero-29__chip--bottom {
+        left: 0;
+        bottom: 0;
+    }
+
+    body[data-page="index"] .features-29__grid {
+        grid-template-columns: 1fr;
+    }
+
+    body[data-page="index"] .features-29__heading {
+        text-align: left;
+    }
+
+    body[data-page="index"] .features-29__subheading {
+        text-align: left;
+        margin-inline: 0;
+    }
+
+    body[data-page="index"] .search-callout-29 {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    body[data-page="index"] .search-callout-29__link {
+        width: 100%;
+        justify-content: center;
+        min-height: 44px;
+    }
+}
+
+/* Narrow mobile: ≤480px */
+@media (max-width: 480px) {
+    body[data-page="index"] .hero-29__actions {
+        flex-direction: column;
+    }
+
+    body[data-page="index"] .hero-29__actions .button {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+}
+
+
+/* ==========================================================================
+   7. PROFILE PAGE STYLES — Step 2 Implementation
+   Scoped strictly to body[data-page="profile"]
+   ========================================================================== */
+
+/* Profile container: comfortable modern width (max 780px) instead of cramped 540px */
+body[data-page="profile"] .profile-container {
+    width: min(100% - 2rem, 780px);
+    margin-inline: auto;
+}
+
+body[data-page="profile"] .profile-header {
+    margin-bottom: 2rem;
+}
+
+body[data-page="profile"] .profile-header .eyebrow {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 100px;
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+body[data-page="profile"] .profile-header h1 {
+    font-size: clamp(1.8rem, 4vw, 2.4rem);
+    font-weight: 800;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+}
+
+body[data-page="profile"] .profile-header .profile-subtitle {
+    color: var(--color-muted);
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+/* Profile Identity Card */
+body[data-page="profile"] .profile-identity-card {
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    margin-bottom: 1.75rem;
+    position: relative;
+    overflow: hidden;
+}
+
+body[data-page="profile"] .profile-identity-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+}
+
+/* Avatar Circle */
+body[data-page="profile"] .profile-avatar {
+    width: 84px;
+    height: 84px;
+    min-width: 84px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 2rem;
+    font-weight: 750;
+    color: #ffffff;
+    box-shadow: var(--shadow-btn);
+    user-select: none;
+}
+
+body[data-page="profile"] .profile-avatar--emerald {
+    background: var(--color-primary);
+}
+
+body[data-page="profile"] .profile-avatar--purple {
+    background: var(--color-secondary);
+}
+
+/* Identity Meta */
+body[data-page="profile"] .profile-identity-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+body[data-page="profile"] .profile-user-name {
+    font-size: 1.45rem;
+    font-weight: 750;
+    color: var(--color-text);
+    margin-bottom: 0.35rem;
+    overflow-wrap: anywhere;
+}
+
+body[data-page="profile"] .profile-user-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+body[data-page="profile"] .profile-user-role-badge--admin {
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+    border: 1px solid rgba(18, 107, 80, 0.25);
+}
+
+body[data-page="profile"] .profile-user-role-badge--user {
+    background: var(--color-surface-lavender);
+    color: var(--color-secondary);
+    border: 1px solid rgba(118, 82, 139, 0.25);
+}
+
+/* Information Grid */
+body[data-page="profile"] .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+}
+
+body[data-page="profile"] .profile-info-card {
+    padding: 1.4rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    transition: transform var(--trans-mid);
+}
+
+body[data-page="profile"] .profile-info-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+body[data-page="profile"] .profile-info-label {
+    display: block;
+    color: var(--color-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.45rem;
+}
+
+body[data-page="profile"] .profile-info-value {
+    color: var(--color-text);
+    font-size: 1.05rem;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    overflow-wrap: anywhere;
+}
+
+/* Copy Email Button */
+body[data-page="profile"] .profile-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+    font-size: 0.82rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition: transform var(--trans-fast);
+    flex-shrink: 0;
+}
+
+body[data-page="profile"] .profile-copy-btn:hover {
+    background: #def0e6;
+    color: var(--color-primary-dark);
+    transform: translateY(-1px);
+}
+
+body[data-page="profile"] .profile-copy-btn:focus-visible {
+    outline: 3px solid var(--color-focus);
+}
+
+/* Quick Actions Section */
+body[data-page="profile"] .profile-actions-card {
+    padding: 1.4rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+body[data-page="profile"] .profile-actions-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-muted);
+    margin-bottom: 0.9rem;
+}
+
+body[data-page="profile"] .profile-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* Copy notification toast/announcement */
+body[data-page="profile"] .profile-feedback {
+    margin-top: 0.75rem;
+    font-size: 0.86rem;
+    font-weight: 650;
+    color: var(--color-primary-dark);
+    min-height: 1.25rem;
+}
+
+/* Motion / Progressive enhancement for Profile */
+body[data-page="profile"] .profile-anim {
+    opacity: 1;
+    transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    body[data-page="profile"] .profile-anim.has-entrance-prep {
+        opacity: 0;
+        transform: translateY(16px);
+        transition:
+            opacity var(--trans-enter),
+            transform var(--trans-enter);
+    }
+
+    body[data-page="profile"] .profile-anim.has-entrance-prep.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    body[data-page="profile"] .profile-anim--delay-1 { transition-delay: 60ms; }
+    body[data-page="profile"] .profile-anim--delay-2 { transition-delay: 140ms; }
+    body[data-page="profile"] .profile-anim--delay-3 { transition-delay: 220ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body[data-page="profile"] .profile-anim,
+    body[data-page="profile"] .profile-info-card {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+    }
+
+    body[data-page="profile"] .profile-info-card:hover,
+    body[data-page="profile"] .profile-copy-btn:hover {
+        transform: none !important;
+    }
+}
+
+/* Responsive for Profile */
+@media (max-width: 680px) {
+    body[data-page="profile"] .profile-identity-card {
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
+        gap: 1.25rem;
+    }
+
+    body[data-page="profile"] .profile-grid {
+        grid-template-columns: 1fr;
+    }
+
+    body[data-page="profile"] .profile-actions-row {
+        flex-direction: column;
+    }
+
+    body[data-page="profile"] .profile-actions-row .button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+}

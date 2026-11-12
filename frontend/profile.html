@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
+    <meta name="description" content="Manage your Digital Library account identity and view your access details.">
     <title>My profile | Digital Library</title>
 
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/home-profile.css?v=29.5.1">
 
     <script type="module" src="js/router.js"></script>
 </head>
@@ -20,23 +21,27 @@
 
     <div id="site-header"></div>
 
-    <main class="container narrow page-main">
+    <main class="container page-main">
 
-        <section class="card">
+        <div class="profile-container">
 
-            <p class="eyebrow">Account</p>
+            <!-- Profile Header -->
+            <header class="profile-header profile-anim profile-anim--delay-1">
+                <p class="eyebrow" aria-hidden="true">Account</p>
+                <h1>Your Reading Profile</h1>
+                <p class="profile-subtitle">
+                    Manage your account identity and view your library access details.
+                </p>
+            </header>
 
-            <h1>My profile</h1>
-
+            <!-- Dynamic Profile Content: rendered by js/pages/profile.js -->
             <div id="profile-content">
-
-                <div class="loading-state" role="status">
+                <div class="card loading-state" role="status">
                     Loading your profile…
                 </div>
-
             </div>
 
-        </section>
+        </div>
 
     </main>
 
